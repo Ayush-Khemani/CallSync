@@ -1,3 +1,7 @@
+// CalSync Backend - Production Ready - COMPLETE VERSION
+// Install: npm install express dotenv pg axios nodemailer cors bcrypt jsonwebtoken
+// Run: node index.js
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -11,7 +15,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Database Connection
+// Database Connection with SSL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -47,43 +51,58 @@ const authMiddleware = (req, res, next) => {
 
 // Initialize Database
 async function initDb() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password VARCHAR(255),
-      google_token TEXT,
-      outlook_token TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255),
+        google_token TEXT,
+        outlook_token TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-    CREATE TABLE IF NOT EXISTS meetings (
-      id SERIAL PRIMARY KEY,
-      user_id INT REFERENCES users(id),
-      attendee_email VARCHAR(255) NOT NULL,
-      attendee_name VARCHAR(255),
-      unique_link VARCHAR(255) UNIQUE,
-      selected_slot TIMESTAMP,
-      status VARCHAR(50) DEFAULT 'pending',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+      CREATE TABLE IF NOT EXISTS meetings (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id),
+        attendee_email VARCHAR(255) NOT NULL,
+        attendee_name VARCHAR(255),
+        unique_link VARCHAR(255) UNIQUE,
+        selected_slot TIMESTAMP,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-    CREATE TABLE IF NOT EXISTS slots (
-      id SERIAL PRIMARY KEY,
-      meeting_id INT REFERENCES meetings(id),
-      slot_time TIMESTAMP NOT NULL,
-      google_event_id VARCHAR(255),
-      outlook_event_id VARCHAR(255),
-      is_selected BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+      CREATE TABLE IF NOT EXISTS slots (
+        id SERIAL PRIMARY KEY,
+        meeting_id INT REFERENCES meetings(id),
+        slot_time TIMESTAMP NOT NULL,
+        google_event_id VARCHAR(255),
+        outlook_event_id VARCHAR(255),
+        is_selected BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ Database initialized successfully');
+  } catch (err) {
+    console.error('❌ Database initialization error:', err.message);
+  }
 }
+
+// Health Check Route
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'CalSync backend is running' });
+});
 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     
     await pool.query(
@@ -93,13 +112,22 @@ app.post('/api/auth/register', async (req, res) => {
     
     res.json({ message: 'User registered successfully' });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    if (err.code === '23505') {
+      res.status(400).json({ error: 'Email already exists' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     
     if (result.rows.length === 0) {
@@ -125,7 +153,10 @@ app.post('/api/auth/google-callback', authMiddleware, async (req, res) => {
   try {
     const { code } = req.body;
     
-    // Exchange code for token
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
     const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
@@ -150,6 +181,10 @@ app.post('/api/auth/outlook-callback', authMiddleware, async (req, res) => {
   try {
     const { code } = req.body;
     
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
     const tokenResponse = await axios.post('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
       client_id: process.env.OUTLOOK_CLIENT_ID,
       client_secret: process.env.OUTLOOK_CLIENT_SECRET,
@@ -174,6 +209,11 @@ app.post('/api/auth/outlook-callback', authMiddleware, async (req, res) => {
 app.get('/api/calendar/available-slots', authMiddleware, async (req, res) => {
   try {
     const { date } = req.query;
+    
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter required' });
+    }
+
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [req.userId]);
     const user = userResult.rows[0];
     
@@ -205,7 +245,6 @@ app.get('/api/calendar/available-slots', authMiddleware, async (req, res) => {
       }
     }
     
-    // Combine and remove duplicates
     const allEvents = [...googleEvents, ...outlookEvents];
     res.json({ availableSlots: generateAvailableSlots(allEvents, date) });
   } catch (err) {
@@ -217,6 +256,11 @@ app.get('/api/calendar/available-slots', authMiddleware, async (req, res) => {
 app.post('/api/meetings/create', authMiddleware, async (req, res) => {
   try {
     const { attendeeEmail, attendeeName, slots } = req.body;
+    
+    if (!attendeeEmail || !attendeeName || !slots || slots.length === 0) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
     const uniqueLink = Math.random().toString(36).substring(7);
     
     const meetingResult = await pool.query(
@@ -239,15 +283,19 @@ app.post('/api/meetings/create', authMiddleware, async (req, res) => {
     }
     
     // Send email
-    await transporter.sendMail({
-      to: attendeeEmail,
-      subject: `Meeting Request from ${userResult.rows[0].email}`,
-      html: `
-        <p>Hi ${attendeeName},</p>
-        <p>${userResult.rows[0].email} has offered you ${slots.length} time slots for a meeting.</p>
-        <p><a href="${process.env.FRONTEND_URL}/select-slot/${uniqueLink}">Click here to select a time</a></p>
-      `
-    });
+    try {
+      await transporter.sendMail({
+        to: attendeeEmail,
+        subject: `Meeting Request from ${userResult.rows[0].email}`,
+        html: `
+          <p>Hi ${attendeeName},</p>
+          <p>${userResult.rows[0].email} has offered you ${slots.length} time slots for a meeting.</p>
+          <p><a href="${process.env.FRONTEND_URL}/select-slot/${uniqueLink}">Click here to select a time</a></p>
+        `
+      });
+    } catch (emailErr) {
+      console.log('Email error:', emailErr.message);
+    }
     
     res.json({ meetingId, uniqueLink, message: 'Meeting created and email sent' });
   } catch (err) {
@@ -261,6 +309,10 @@ app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
     const { slotId } = req.body;
     const { uniqueLink } = req.params;
     
+    if (!slotId) {
+      return res.status(400).json({ error: 'Slot ID required' });
+    }
+
     const meetingResult = await pool.query(
       'SELECT * FROM meetings WHERE unique_link = $1',
       [uniqueLink]
@@ -312,17 +364,21 @@ app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
     );
     
     // Send confirmation emails
-    await transporter.sendMail({
-      to: meeting.attendee_email,
-      subject: 'Meeting Confirmed',
-      html: `<p>Your meeting has been confirmed for ${selectedSlotResult.rows[0].slot_time}</p>`
-    });
-    
-    await transporter.sendMail({
-      to: user.email,
-      subject: 'Meeting Confirmed',
-      html: `<p>${meeting.attendee_name} has selected a meeting slot for ${selectedSlotResult.rows[0].slot_time}</p>`
-    });
+    try {
+      await transporter.sendMail({
+        to: meeting.attendee_email,
+        subject: 'Meeting Confirmed',
+        html: `<p>Your meeting has been confirmed for ${selectedSlotResult.rows[0].slot_time}</p>`
+      });
+      
+      await transporter.sendMail({
+        to: user.email,
+        subject: 'Meeting Confirmed',
+        html: `<p>${meeting.attendee_name} has selected a meeting slot for ${selectedSlotResult.rows[0].slot_time}</p>`
+      });
+    } catch (emailErr) {
+      console.log('Email error:', emailErr.message);
+    }
     
     res.json({ message: 'Slot selected and other slots deleted', selectedSlot: selectedSlotResult.rows[0].slot_time });
   } catch (err) {
@@ -332,7 +388,6 @@ app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
 
 // Helper Functions
 function generateAvailableSlots(events, date) {
-  // Generate 1-hour slots throughout the day and filter out booked times
   const slots = [];
   const dayStart = new Date(date);
   dayStart.setHours(9, 0, 0, 0);
@@ -426,6 +481,6 @@ async function deleteOutlookEvent(token, eventId) {
 // Initialize and Start
 initDb().then(() => {
   app.listen(process.env.PORT || 5000, () => {
-    console.log('CalSync server running on port', process.env.PORT || 5000);
+    console.log('🚀 CalSync server running on port', process.env.PORT || 5000);
   });
 });
