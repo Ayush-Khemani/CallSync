@@ -21,7 +21,7 @@ function LoginPage() {
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
       const response = await axios.post(`${API_URL}${endpoint}`, { email, password });
-      
+      // 
       if (isLogin) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('userId', response.data.userId);
