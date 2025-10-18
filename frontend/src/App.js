@@ -19,7 +19,7 @@ function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const endpoint = isLogin ? 'api/auth/login' : 'api/auth/register';
+      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
       const response = await axios.post(`${API_URL}${endpoint}`, { email, password });
       
       if (isLogin) {
