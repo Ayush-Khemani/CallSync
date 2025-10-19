@@ -214,8 +214,8 @@ function CreateMeetingTab() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const fullLink = `https://call-sync-livid.vercel.app/select-slot/${response.data.uniqueLink}`;
-      setMessage(`Meeting created! Unique link: ${fullLink}`);
+    
+      setMessage(`Meeting created! and Email sent to the attendee`);
       setAttendeeEmail('');
       setAttendeeName('');
       setSelectedDate('');
@@ -311,29 +311,30 @@ function SelectSlotPage() {
 
   const handleSelectSlot = async (slot) => {
     try {
-      const response = await axios.post(`${API_URL}/api/meetings/select-slot/${uniqueLink}`, {
-        slotId: slot.id
-      });
+      const response = await axios.post(
+        `${API_URL}/api/meetings/select-slot/${uniqueLink}`,
+        { slotId: slot.id } // send actual numeric id
+      );
       setMessage('✓ Slot selected! Confirmation email sent.');
     } catch (err) {
       setMessage('Error selecting slot');
     }
   };
-
   return (
     <div style={styles.container}>
       <div style={styles.card}>
         <h1>Select Your Meeting Time</h1>
         <div style={styles.slotsGrid}>
-          {slots.map((slot, idx) => (
+          {slots.map((slot) => (
             <button
-              key={slot.id || idx}
-              onClick={() => handleSelectSlot(idx)}
+              key={slot.id} // use actual slot id
+              onClick={() => handleSelectSlot(slot)} // pass the full slot object
               style={styles.slotButton}
             >
               {new Date(slot.slot_time).toLocaleString()}
             </button>
           ))}
+
 
         </div>
         {message && <p style={styles.message}>{message}</p>}
