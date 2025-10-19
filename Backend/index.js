@@ -101,6 +101,7 @@ app.post('/api/auth/google-callback', (req, res) => {
   res.json({ message: 'Route exists' });
 });
 
+// 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
   try {
