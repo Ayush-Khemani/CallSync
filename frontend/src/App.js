@@ -179,7 +179,7 @@ function CreateMeetingTab() {
 
   const fetchAvailableSlots = async () => {
     try {
-      const response = await axios.get(`${API_URL}/calendar/available-slots`, {
+      const response = await axios.get(`${API_URL}/api/calendar/available-slots`, {
         params: { date: selectedDate },
         headers: { Authorization: `Bearer ${token}` }
       });
