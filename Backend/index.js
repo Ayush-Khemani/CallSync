@@ -28,11 +28,11 @@ const pool = new Pool({
 
 // Email Configuration
 const transporter = nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE || 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
-    }
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD
+  }
 });
 
 // JWT Secret
@@ -97,11 +97,28 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'CalSync backend is running' });
 });
 
-app.post('/api/auth/google-callback', (req, res) => {
-    console.log('🔍 Google callback received!');
-    console.log('Headers:', req.headers);
-    console.log('Body:', req.body);
-    res.json({ message: 'Route exists' });
+app.post('/api/auth/google-callback', authMiddleware, async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Authorization code required' });
+
+    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      code,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      grant_type: 'authorization_code'
+    });
+
+    await pool.query(
+      'UPDATE users SET google_token = $1 WHERE id = $2',
+      [tokenResponse.data.access_token, req.userId]
+    );
+
+    res.json({ message: 'Google calendar connected' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 
@@ -305,76 +322,61 @@ app.get('/api/calendar/available-slots', authMiddleware, async (req, res) => {
 app.post('/api/meetings/create', authMiddleware, async (req, res) => {
   try {
     const { attendeeEmail, attendeeName, slots } = req.body;
-    
     if (!attendeeEmail || !attendeeName || !slots || slots.length === 0) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // 1️⃣ Generate a unique link for the attendee
-    const uniqueLink = Math.random().toString(36).substring(2, 12);
+    const uniqueLink = Math.random().toString(36).substring(7);
 
-    // 2️⃣ Insert meeting into DB
+    // Create meeting
     const meetingResult = await pool.query(
       'INSERT INTO meetings (user_id, attendee_email, attendee_name, unique_link) VALUES ($1, $2, $3, $4) RETURNING id',
       [req.userId, attendeeEmail, attendeeName, uniqueLink]
     );
     const meetingId = meetingResult.rows[0].id;
 
-    // 3️⃣ Insert slots into DB
-    const insertedSlots = [];
+    // Insert slots and create calendar events
     for (const slot of slots) {
       const insert = await pool.query(
         'INSERT INTO slots (meeting_id, slot_time) VALUES ($1, $2) RETURNING id, slot_time',
         [meetingId, slot]
       );
-      insertedSlots.push(insert.rows[0]); // { id, slot_time }
+      const s = insert.rows[0];
+
+      // Fire-and-forget calendar events
+      createGoogleEvent(req.userId, s.slot_time, attendeeEmail)
+        .then(gId => {
+          if (gId) pool.query('UPDATE slots SET google_event_id=$1 WHERE id=$2', [gId, s.id]);
+        }).catch(console.log);
+
+      createOutlookEvent(req.userId, s.slot_time, attendeeEmail)
+        .then(oId => {
+          if (oId) pool.query('UPDATE slots SET outlook_event_id=$1 WHERE id=$2', [oId, s.id]);
+        }).catch(console.log);
     }
 
-    // 4️⃣ Respond immediately to frontend (don't expose uniqueLink if you want security)
-    res.json({ 
-      message: 'Meeting created. Attendee will receive an email to select a slot.' 
-    });
-
-    // 5️⃣ Send email asynchronously
-    const userResult = await pool.query('SELECT email, google_token, outlook_token FROM users WHERE id = $1', [req.userId]);
-    const user = userResult.rows[0];
-
+    // Send email to attendee
     try {
       await transporter.sendMail({
         to: attendeeEmail,
-        subject: `Meeting Request from ${user.email}`,
+        subject: `Meeting Request from ${req.userId}`,
         html: `
           <p>Hi ${attendeeName},</p>
-          <p>${user.email} has offered you ${slots.length} time slots for a meeting.</p>
-          <p>Please select a slot here: <a href="${process.env.FRONTEND_URL}/select-slot/${uniqueLink}">Pick a slot</a></p>
+          <p>You have been offered ${slots.length} time slots for a meeting.</p>
+          <p>Click this link to select a time: ${process.env.FRONTEND_URL}/select-slot/${uniqueLink}</p>
         `
       });
-      console.log('✅ Email sent to attendee');
     } catch (emailErr) {
-      console.log('❌ Email sending error:', emailErr.message);
+      console.log('Email sending error:', emailErr.message);
     }
 
-    // 6️⃣ Book slots in calendars asynchronously (non-blocking)
-    insertedSlots.forEach(async (s) => {
-      try {
-        let gId = null, oId = null;
-        if (user.google_token) {
-          gId = await createGoogleEvent(req.userId, s.slot_time, attendeeEmail);
-        }
-        if (user.outlook_token) {
-          oId = await createOutlookEvent(req.userId, s.slot_time, attendeeEmail);
-        }
-        await pool.query('UPDATE slots SET google_event_id=$1, outlook_event_id=$2 WHERE id=$3', [gId, oId, s.id]);
-      } catch (err) {
-        console.log('❌ Slot booking error:', err.response?.data || err.message);
-      }
-    });
-
+    // DO NOT return uniqueLink to frontend
+    res.json({ message: 'Meeting created and email sent' });
   } catch (err) {
-    console.log('❌ Meeting creation error:', err.message);
     res.status(400).json({ error: err.message });
   }
 });
+
 
 
 // Select Slot (Public endpoint)
@@ -489,53 +491,51 @@ function generateAvailableSlots(events, date) {
 }
 
 async function createGoogleEvent(userId, slotTime, attendeeEmail) {
-    try {
-        const userResult = await pool.query('SELECT google_token FROM users WHERE id = $1', [userId]);
-        const token = userResult.rows[0]?.google_token;
-        console.log('Google token:', token);
-        if (!token) return null;
+  try {
+    const userResult = await pool.query('SELECT google_token FROM users WHERE id = $1', [userId]);
+    const token = userResult.rows[0]?.google_token;
+    if (!token) return null;
 
-        const response = await axios.post(
-            'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-            {
-                summary: `Meeting with ${attendeeEmail}`,
-                start: { dateTime: slotTime },
-                end: { dateTime: new Date(new Date(slotTime).getTime() + 60 * 60000).toISOString() },
-                attendees: [{ email: attendeeEmail }]
-            },
-            { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        console.log('Google event created:', response.data);
-        return response.data.id;
-    } catch (err) {
-        console.log('Google event creation error:', err.response?.data || err.message);
-        return null;
-    }
+    const response = await axios.post(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+      {
+        summary: `Meeting with ${attendeeEmail}`,
+        start: { dateTime: slotTime },
+        end: { dateTime: new Date(new Date(slotTime).getTime() + 60 * 60000).toISOString() },
+        attendees: [{ email: attendeeEmail }]
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data.id;
+  } catch (err) {
+    console.log('Google event creation error:', err.message);
+    return null;
+  }
 }
 
 
+
 async function createOutlookEvent(userId, slotTime, attendeeEmail) {
-    try {
-        const userResult = await pool.query('SELECT outlook_token FROM users WHERE id = $1', [userId]);
-        if (!userResult.rows[0].outlook_token) return null;
+  try {
+    const userResult = await pool.query('SELECT outlook_token FROM users WHERE id = $1', [userId]);
+    const token = userResult.rows[0]?.outlook_token;
+    if (!token) return null;
 
-        const response = await axios.post(
-            'https://graph.microsoft.com/v1.0/me/calendar/events',
-            {
-                subject: `Meeting with ${attendeeEmail}`,
-                start: { dateTime: slotTime, timeZone: 'UTC' },
-                end: { dateTime: new Date(new Date(slotTime).getTime() + 60 * 60000).toISOString(), timeZone: 'UTC' },
-                attendees: [{ emailAddress: { address: attendeeEmail }, type: 'required' }]
-            },
-            { headers: { Authorization: `Bearer ${userResult.rows[0].outlook_token}` } }
-        );
-
-        return response.data.id;
-    } catch (err) {
-        console.log('Outlook event creation error:', err.message);
-        return null;
-    }
+    const response = await axios.post(
+      'https://graph.microsoft.com/v1.0/me/calendar/events',
+      {
+        subject: `Meeting with ${attendeeEmail}`,
+        start: { dateTime: slotTime, timeZone: 'UTC' },
+        end: { dateTime: new Date(new Date(slotTime).getTime() + 60 * 60000).toISOString(), timeZone: 'UTC' },
+        attendees: [{ emailAddress: { address: attendeeEmail }, type: 'required' }]
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data.id;
+  } catch (err) {
+    console.log('Outlook event creation error:', err.message);
+    return null;
+  }
 }
 
 async function deleteGoogleEvent(token, eventId) {
