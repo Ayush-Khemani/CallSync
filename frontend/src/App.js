@@ -373,7 +373,7 @@ function OutlookAuthCallback() {
     const code = params.get('code');
 
     if (code && token) {
-      axios.post(`${API_URL}/auth/outlook-callback`, { code }, {
+      axios.post(`${API_URL}/api/auth/outlook-callback`, { code }, {
         headers: { Authorization: `Bearer ${token}` }
       })
       .then(() => {
