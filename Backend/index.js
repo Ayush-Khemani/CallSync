@@ -491,7 +491,9 @@ function generateAvailableSlots(events, date) {
 async function createGoogleEvent(userId, slotTime, attendeeEmail) {
     try {
         const userResult = await pool.query('SELECT google_token FROM users WHERE id = $1', [userId]);
-        if (!userResult.rows[0].google_token) return null;
+        const token = userResult.rows[0]?.google_token;
+        console.log('Google token:', token);
+        if (!token) return null;
 
         const response = await axios.post(
             'https://www.googleapis.com/calendar/v3/calendars/primary/events',
@@ -501,15 +503,17 @@ async function createGoogleEvent(userId, slotTime, attendeeEmail) {
                 end: { dateTime: new Date(new Date(slotTime).getTime() + 60 * 60000).toISOString() },
                 attendees: [{ email: attendeeEmail }]
             },
-            { headers: { Authorization: `Bearer ${userResult.rows[0].google_token}` } }
+            { headers: { Authorization: `Bearer ${token}` } }
         );
 
+        console.log('Google event created:', response.data);
         return response.data.id;
     } catch (err) {
-        console.log('Google event creation error:', err.message);
+        console.log('Google event creation error:', err.response?.data || err.message);
         return null;
     }
 }
+
 
 async function createOutlookEvent(userId, slotTime, attendeeEmail) {
     try {
