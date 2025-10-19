@@ -62,14 +62,14 @@ function LoginPage() {
             {isLogin ? 'Login' : 'Register'}
           </button>
         </form>
-        
+
         <button
           onClick={() => setIsLogin(!isLogin)}
           style={{ ...styles.button, backgroundColor: '#6c757d' }}
         >
           {isLogin ? 'Create new account' : 'Back to login'}
         </button>
-        
+
         {message && <p style={styles.message}>{message}</p>}
       </div>
     </div>
@@ -147,7 +147,7 @@ function ConnectCalendarTab({ onGoogleAuth, onOutlookAuth }) {
     <div style={styles.tabContent}>
       <h2>Connect Your Calendars</h2>
       <p>Synchronize your Google and Outlook calendars to see all your available slots.</p>
-      
+
       <div style={styles.calendarOptions}>
         <div style={styles.calendarCard}>
           <h3>Google Calendar</h3>
@@ -155,7 +155,7 @@ function ConnectCalendarTab({ onGoogleAuth, onOutlookAuth }) {
             Connect Google Calendar
           </button>
         </div>
-        
+
         <div style={styles.calendarCard}>
           <h3>Outlook Calendar</h3>
           <button onClick={onOutlookAuth} style={{ ...styles.button, backgroundColor: '#0078d4' }}>
@@ -213,7 +213,7 @@ function CreateMeetingTab() {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       const fullLink = `https://call-sync-livid.vercel.app/select-slot/${response.data.uniqueLink}`;
       setMessage(`Meeting created! Unique link: ${fullLink}`);
       setAttendeeEmail('');
@@ -229,7 +229,7 @@ function CreateMeetingTab() {
   return (
     <div style={styles.tabContent}>
       <h2>Create Meeting Request</h2>
-      
+
       <div style={styles.form}>
         <input
           type="email"
@@ -238,7 +238,7 @@ function CreateMeetingTab() {
           onChange={(e) => setAttendeeEmail(e.target.value)}
           style={styles.input}
         />
-        
+
         <input
           type="text"
           placeholder="Attendee Name"
@@ -246,14 +246,14 @@ function CreateMeetingTab() {
           onChange={(e) => setAttendeeName(e.target.value)}
           style={styles.input}
         />
-        
+
         <input
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
           style={styles.input}
         />
-        
+
         <button onClick={fetchAvailableSlots} style={styles.button}>
           Fetch Available Slots
         </button>
@@ -277,7 +277,7 @@ function CreateMeetingTab() {
               </div>
             ))}
           </div>
-          
+
           <p>Selected: {selectedSlots.length} slots</p>
           <button onClick={handleCreateMeeting} style={{ ...styles.button, backgroundColor: '#28a745' }}>
             Create Meeting with {selectedSlots.length} Slots
@@ -297,17 +297,17 @@ function SelectSlotPage() {
   const [message, setMessage] = useState('');
   const uniqueLink = window.location.pathname.split('/').pop();
 
- useEffect(() => {
-  const fetchSlots = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/api/meetings/${uniqueLink}`);
-      setSlots(res.data.slots);
-    } catch (err) {
-      setMessage('Error loading meeting slots');
-    }
-  };
-  fetchSlots();
-}, [uniqueLink]);
+  useEffect(() => {
+    const fetchSlots = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/meetings/${uniqueLink}`);
+        setSlots(res.data.slots);
+      } catch (err) {
+        setMessage('Error loading meeting slots');
+      }
+    };
+    fetchSlots();
+  }, [uniqueLink]);
 
   const handleSelectSlot = async (slot) => {
     try {
@@ -327,13 +327,14 @@ function SelectSlotPage() {
         <div style={styles.slotsGrid}>
           {slots.map((slot, idx) => (
             <button
-              key={idx}
+              key={slot.id || idx}
               onClick={() => handleSelectSlot(idx)}
               style={styles.slotButton}
             >
-              {slot}
+              {new Date(slot.slot_time).toLocaleString()}
             </button>
           ))}
+
         </div>
         {message && <p style={styles.message}>{message}</p>}
       </div>
@@ -355,14 +356,14 @@ function GoogleAuthCallback() {
       axios.post(`${API_URL}/api/auth/google-callback`, { code }, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      .then(() => {
-        navigate('/dashboard');
-        alert('Google Calendar connected successfully!');
-      })
-      .catch(err => {
-        alert('Error connecting Google Calendar: ' + err.message);
-        navigate('/dashboard');
-      });
+        .then(() => {
+          navigate('/dashboard');
+          alert('Google Calendar connected successfully!');
+        })
+        .catch(err => {
+          alert('Error connecting Google Calendar: ' + err.message);
+          navigate('/dashboard');
+        });
     }
   }, [token, navigate]);
 
@@ -382,14 +383,14 @@ function OutlookAuthCallback() {
       axios.post(`${API_URL}/api/auth/outlook-callback`, { code }, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      .then(() => {
-        navigate('/dashboard');
-        alert('Outlook Calendar connected successfully!');
-      })
-      .catch(err => {
-        alert('Error connecting Outlook Calendar: ' + err.message);
-        navigate('/dashboard');
-      });
+        .then(() => {
+          navigate('/dashboard');
+          alert('Outlook Calendar connected successfully!');
+        })
+        .catch(err => {
+          alert('Error connecting Outlook Calendar: ' + err.message);
+          navigate('/dashboard');
+        });
     }
   }, [token, navigate]);
 
