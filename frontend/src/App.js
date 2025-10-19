@@ -214,7 +214,7 @@ function CreateMeetingTab() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      const fullLink = `${process.env.REACT_APP_FRONTEND_URL}/select-slot/${response.data.uniqueLink}`;
+      const fullLink = `https://call-sync-livid.vercel.app/select-slot/${response.data.uniqueLink}`;
       setMessage(`Meeting created! Unique link: ${fullLink}`);
       setAttendeeEmail('');
       setAttendeeName('');
