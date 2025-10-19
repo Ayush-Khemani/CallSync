@@ -301,68 +301,81 @@ app.get('/api/calendar/available-slots', authMiddleware, async (req, res) => {
 });
 
 // Create Meeting with Slots
+// Create Meeting with Slots
 app.post('/api/meetings/create', authMiddleware, async (req, res) => {
-    try {
-        const { attendeeEmail, attendeeName, slots } = req.body;
-
-        if (!attendeeEmail || !attendeeName || !slots || slots.length === 0) {
-            return res.status(400).json({ error: 'Missing required fields' });
-        }
-
-        const uniqueLink = Math.random().toString(36).substring(7);
-
-        const meetingResult = await pool.query(
-            'INSERT INTO meetings (user_id, attendee_email, attendee_name, unique_link) VALUES ($1, $2, $3, $4) RETURNING id',
-            [req.userId, attendeeEmail, attendeeName, uniqueLink]
-        );
-
-        const meetingId = meetingResult.rows[0].id;
-        const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.userId]);
-        const insertedSlots = [];
-        // Insert slots
-        for (const slot of slots) {
-            const insert = await pool.query(
-                'INSERT INTO slots (meeting_id, slot_time) VALUES ($1, $2) RETURNING id, slot_time',
-                [meetingId, slot]
-            );
-            insertedSlots.push(insert.rows[0]); // { id, slot_time }
-        }
-
-        // Create calendar events in background (non-blocking)
-        Promise.allSettled(
-            insertedSlots.map(async (s) => {
-                try {
-                    const [g, o] = await Promise.allSettled([
-                        createGoogleEvent(req.userId, s.slot_time, attendeeEmail),
-                        createOutlookEvent(req.userId, s.slot_time, attendeeEmail)
-                    ]);
-                    const gId = g.status === 'fulfilled' ? g.value : null;
-                    const oId = o.status === 'fulfilled' ? o.value : null;
-                    await pool.query('UPDATE slots SET google_event_id=$1, outlook_event_id=$2 WHERE id=$3', [gId, oId, s.id]);
-                } catch (e) {
-                    console.log('Event creation error:', e.message);
-                }
-            })
-        );
-
-        console.log('Inserted slots pre-booked:', insertedSlots);
-
-        transporter.sendMail({
-            to: attendeeEmail,
-            subject: `Meeting Request from ${userResult.rows[0].email}`,
-            html: `
-    <p>Hi ${attendeeName},</p>
-    <p>${userResult.rows[0].email} has offered you ${slots.length} time slots for a meeting.</p>
-    <p><a href="${process.env.FRONTEND_URL}/select-slot/${uniqueLink}">Click here to select a time</a></p>
-  `
-        }).catch(err => console.log('Email error:', err.message));
-
-       res.json({ message: 'Meeting created. Attendee will receive an email to select a slot.' });
-
-    } catch (err) {
-        res.status(400).json({ error: err.message });
+  try {
+    const { attendeeEmail, attendeeName, slots } = req.body;
+    
+    if (!attendeeEmail || !attendeeName || !slots || slots.length === 0) {
+      return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    // 1️⃣ Generate a unique link for the attendee
+    const uniqueLink = Math.random().toString(36).substring(2, 12);
+
+    // 2️⃣ Insert meeting into DB
+    const meetingResult = await pool.query(
+      'INSERT INTO meetings (user_id, attendee_email, attendee_name, unique_link) VALUES ($1, $2, $3, $4) RETURNING id',
+      [req.userId, attendeeEmail, attendeeName, uniqueLink]
+    );
+    const meetingId = meetingResult.rows[0].id;
+
+    // 3️⃣ Insert slots into DB
+    const insertedSlots = [];
+    for (const slot of slots) {
+      const insert = await pool.query(
+        'INSERT INTO slots (meeting_id, slot_time) VALUES ($1, $2) RETURNING id, slot_time',
+        [meetingId, slot]
+      );
+      insertedSlots.push(insert.rows[0]); // { id, slot_time }
+    }
+
+    // 4️⃣ Respond immediately to frontend (don't expose uniqueLink if you want security)
+    res.json({ 
+      message: 'Meeting created. Attendee will receive an email to select a slot.' 
+    });
+
+    // 5️⃣ Send email asynchronously
+    const userResult = await pool.query('SELECT email, google_token, outlook_token FROM users WHERE id = $1', [req.userId]);
+    const user = userResult.rows[0];
+
+    try {
+      await transporter.sendMail({
+        to: attendeeEmail,
+        subject: `Meeting Request from ${user.email}`,
+        html: `
+          <p>Hi ${attendeeName},</p>
+          <p>${user.email} has offered you ${slots.length} time slots for a meeting.</p>
+          <p>Please select a slot here: <a href="${process.env.FRONTEND_URL}/select-slot/${uniqueLink}">Pick a slot</a></p>
+        `
+      });
+      console.log('✅ Email sent to attendee');
+    } catch (emailErr) {
+      console.log('❌ Email sending error:', emailErr.message);
+    }
+
+    // 6️⃣ Book slots in calendars asynchronously (non-blocking)
+    insertedSlots.forEach(async (s) => {
+      try {
+        let gId = null, oId = null;
+        if (user.google_token) {
+          gId = await createGoogleEvent(req.userId, s.slot_time, attendeeEmail);
+        }
+        if (user.outlook_token) {
+          oId = await createOutlookEvent(req.userId, s.slot_time, attendeeEmail);
+        }
+        await pool.query('UPDATE slots SET google_event_id=$1, outlook_event_id=$2 WHERE id=$3', [gId, oId, s.id]);
+      } catch (err) {
+        console.log('❌ Slot booking error:', err.response?.data || err.message);
+      }
+    });
+
+  } catch (err) {
+    console.log('❌ Meeting creation error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
 });
+
 
 // Select Slot (Public endpoint)
 // Select Slot (Public endpoint)
