@@ -214,7 +214,8 @@ function CreateMeetingTab() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      setMessage(`Meeting created! Unique link: ${response.data.uniqueLink}`);
+      const fullLink = `${process.env.REACT_APP_FRONTEND_URL}/select-slot/${response.data.uniqueLink}`;
+      setMessage(`Meeting created! Unique link: ${fullLink}`);
       setAttendeeEmail('');
       setAttendeeName('');
       setSelectedDate('');
@@ -305,7 +306,7 @@ function SelectSlotPage() {
 
   const handleSelectSlot = async (slot) => {
     try {
-      const response = await axios.post(`${API_URL}/meetings/select-slot/${uniqueLink}`, {
+      const response = await axios.post(`${API_URL}/api/meetings/select-slot/${uniqueLink}`, {
         slotId: slot
       });
       setMessage('✓ Slot selected! Confirmation email sent.');
