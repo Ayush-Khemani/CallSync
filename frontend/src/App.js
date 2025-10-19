@@ -205,7 +205,7 @@ function CreateMeetingTab() {
 
     try {
       const response = await axios.post(
-        `${API_URL}/meetings/create`,
+        `${API_URL}/api/meetings/create`,
         {
           attendeeEmail,
           attendeeName,
