@@ -335,6 +335,61 @@ function SelectSlotPage() {
   );
 }
 
+
+// Google Auth Callback Handler
+function GoogleAuthCallback() {
+  const navigate = useNavigate();
+  const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (code && token) {
+      axios.post(`${API_URL}/auth/google-callback`, { code }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(() => {
+        navigate('/dashboard');
+        alert('Google Calendar connected successfully!');
+      })
+      .catch(err => {
+        alert('Error connecting Google Calendar: ' + err.message);
+        navigate('/dashboard');
+      });
+    }
+  }, [token, navigate]);
+
+  return <div>Connecting Google Calendar...</div>;
+}
+
+// Outlook Auth Callback Handler
+function OutlookAuthCallback() {
+  const navigate = useNavigate();
+  const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (code && token) {
+      axios.post(`${API_URL}/auth/outlook-callback`, { code }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(() => {
+        navigate('/dashboard');
+        alert('Outlook Calendar connected successfully!');
+      })
+      .catch(err => {
+        alert('Error connecting Outlook Calendar: ' + err.message);
+        navigate('/dashboard');
+      });
+    }
+  }, [token, navigate]);
+
+  return <div>Connecting Outlook Calendar...</div>;
+}
+
 // Styles
 const styles = {
   container: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f5f5f5' },
@@ -364,6 +419,8 @@ export default function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/select-slot/:uniqueLink" element={<SelectSlotPage />} />
+        <Route path="/auth/google" element={<GoogleAuthCallback />} />
+        <Route path="/auth/outlook" element={<OutlookAuthCallback />} />
       </Routes>
     </Router>
   );
