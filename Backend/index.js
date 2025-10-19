@@ -140,6 +140,7 @@ app.get('/api/meetings/:uniqueLink', async (req, res) => {
   }
 });
 
+
 // 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
@@ -366,47 +367,49 @@ Promise.allSettled(
 });
 
 // Select Slot (Public endpoint)
+// Select Slot (Public endpoint)
 app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
   try {
     const { slotId } = req.body;
     const { uniqueLink } = req.params;
-    
-    if (!slotId) {
+
+    if (slotId === undefined || slotId === null) {
       return res.status(400).json({ error: 'Slot ID required' });
     }
 
     const numericSlotId = parseInt(slotId, 10);
-if (isNaN(numericSlotId)) return res.status(400).json({ error: 'Invalid Slot ID' });
+    if (isNaN(numericSlotId)) return res.status(400).json({ error: 'Invalid Slot ID' });
 
+    // fetch meeting by link
     const meetingResult = await pool.query(
       'SELECT * FROM meetings WHERE unique_link = $1',
       [uniqueLink]
     );
-    
+
     if (meetingResult.rows.length === 0) {
       return res.status(404).json({ error: 'Meeting not found' });
     }
-    
+
     const meeting = meetingResult.rows[0];
-    
+
+    // verify the slot belongs to this meeting
+    const slotCheck = await pool.query('SELECT * FROM slots WHERE id = $1 AND meeting_id = $2', [numericSlotId, meeting.id]);
+    if (slotCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Slot not found for this meeting' });
+    }
+
     // Mark selected slot
-    await pool.query(
-      'UPDATE slots SET is_selected = TRUE WHERE id = $1',
-      [slotId]
-    );
-    
+    await pool.query('UPDATE slots SET is_selected = TRUE WHERE id = $1', [numericSlotId]);
+
     // Get all slots for this meeting
-    const slotsResult = await pool.query(
-      'SELECT * FROM slots WHERE meeting_id = $1',
-      [meeting.id]
-    );
-    
+    const slotsResult = await pool.query('SELECT * FROM slots WHERE meeting_id = $1', [meeting.id]);
+
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [meeting.user_id]);
     const user = userResult.rows[0];
-    
-    // Delete all non-selected slots from both calendars
+
+    // Delete all non-selected slots from both calendars and DB
     for (const slot of slotsResult.rows) {
-      if (slot.id !== slotId) {
+      if (slot.id !== numericSlotId) {
         if (slot.google_event_id) {
           await deleteGoogleEvent(user.google_token, slot.google_event_id);
         }
@@ -416,26 +419,23 @@ if (isNaN(numericSlotId)) return res.status(400).json({ error: 'Invalid Slot ID'
         await pool.query('DELETE FROM slots WHERE id = $1', [slot.id]);
       }
     }
-    
-    // Update meeting status
-    const selectedSlotResult = await pool.query(
-      'SELECT slot_time FROM slots WHERE id = $1',
-      [slotId]
-    );
-    
+
+    // Fetch selected slot_time and update meeting
+    const selectedSlotResult = await pool.query('SELECT slot_time FROM slots WHERE id = $1', [numericSlotId]);
+
     await pool.query(
       'UPDATE meetings SET status = $1, selected_slot = $2 WHERE id = $3',
       ['confirmed', selectedSlotResult.rows[0].slot_time, meeting.id]
     );
-    
-    // Send confirmation emails
+
+    // Send confirmation emails (best-effort)
     try {
       await transporter.sendMail({
         to: meeting.attendee_email,
         subject: 'Meeting Confirmed',
         html: `<p>Your meeting has been confirmed for ${selectedSlotResult.rows[0].slot_time}</p>`
       });
-      
+
       await transporter.sendMail({
         to: user.email,
         subject: 'Meeting Confirmed',
@@ -444,12 +444,14 @@ if (isNaN(numericSlotId)) return res.status(400).json({ error: 'Invalid Slot ID'
     } catch (emailErr) {
       console.log('Email error:', emailErr.message);
     }
-    
+
     res.json({ message: 'Slot selected and other slots deleted', selectedSlot: selectedSlotResult.rows[0].slot_time });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
+
+
 
 // Helper Functions
 function generateAvailableSlots(events, date) {
@@ -544,18 +546,7 @@ async function deleteOutlookEvent(token, eventId) {
 }
 
 
-app.get('/api/meetings/:uniqueLink', async (req, res) => {
-  try {
-    const { uniqueLink } = req.params;
-    const meeting = await pool.query('SELECT id FROM meetings WHERE unique_link=$1', [uniqueLink]);
-    if (meeting.rows.length === 0) return res.status(404).json({ error: 'Meeting not found' });
 
-    const slots = await pool.query('SELECT id, slot_time, is_selected FROM slots WHERE meeting_id=$1', [meeting.rows[0].id]);
-    res.json({ slots: slots.rows });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
 
 // Initialize and Start
 initDb().then(() => {
