@@ -346,7 +346,7 @@ function GoogleAuthCallback() {
     const code = params.get('code');
 
     if (code && token) {
-      axios.post(`${API_URL}/auth/google-callback`, { code }, {
+      axios.post(`${API_URL}/api/auth/google-callback`, { code }, {
         headers: { Authorization: `Bearer ${token}` }
       })
       .then(() => {
