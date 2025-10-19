@@ -7,6 +7,9 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const axios = require('axios');
+// near top of file, after requiring axios
+axios.defaults.timeout = 7000; // 7s global timeout to avoid long blocking waits
+
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -99,6 +102,42 @@ app.post('/api/auth/google-callback', (req, res) => {
   console.log('Headers:', req.headers);
   console.log('Body:', req.body);
   res.json({ message: 'Route exists' });
+});
+
+
+app.get('/api/meetings/:uniqueLink', async (req, res) => {
+  try {
+    const { uniqueLink } = req.params;
+
+    const meetingResult = await pool.query(
+      'SELECT id, user_id, attendee_email, attendee_name, unique_link, selected_slot, status, created_at FROM meetings WHERE unique_link = $1',
+      [uniqueLink]
+    );
+
+    if (meetingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    const meeting = meetingResult.rows[0];
+
+    const slotsResult = await pool.query(
+      'SELECT id, slot_time, is_selected FROM slots WHERE meeting_id = $1 ORDER BY slot_time',
+      [meeting.id]
+    );
+
+    res.json({
+      meeting: {
+        id: meeting.id,
+        attendeeEmail: meeting.attendee_email,
+        attendeeName: meeting.attendee_name,
+        status: meeting.status,
+        selectedSlot: meeting.selected_slot
+      },
+      slots: slotsResult.rows // each row: { id, slot_time, is_selected }
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // 
@@ -278,17 +317,32 @@ app.post('/api/meetings/create', authMiddleware, async (req, res) => {
     
     const meetingId = meetingResult.rows[0].id;
     const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.userId]);
-    
+    const insertedSlots = [];
     // Insert slots
     for (const slot of slots) {
-      const googleEventId = await createGoogleEvent(req.userId, slot, attendeeEmail);
-      const outlookEventId = await createOutlookEvent(req.userId, slot, attendeeEmail);
-      
-      await pool.query(
-        'INSERT INTO slots (meeting_id, slot_time, google_event_id, outlook_event_id) VALUES ($1, $2, $3, $4)',
-        [meetingId, slot, googleEventId, outlookEventId]
-      );
+  const insert = await pool.query(
+    'INSERT INTO slots (meeting_id, slot_time) VALUES ($1, $2) RETURNING id, slot_time',
+    [meetingId, slot]
+  );
+  insertedSlots.push(insert.rows[0]); // { id, slot_time }
+}
+
+// Create calendar events in background (non-blocking)
+Promise.allSettled(
+  insertedSlots.map(async (s) => {
+    try {
+      const [g, o] = await Promise.allSettled([
+        createGoogleEvent(req.userId, s.slot_time, attendeeEmail),
+        createOutlookEvent(req.userId, s.slot_time, attendeeEmail)
+      ]);
+      const gId = g.status === 'fulfilled' ? g.value : null;
+      const oId = o.status === 'fulfilled' ? o.value : null;
+      await pool.query('UPDATE slots SET google_event_id=$1, outlook_event_id=$2 WHERE id=$3', [gId, oId, s.id]);
+    } catch (e) {
+      console.log('Event creation error:', e.message);
     }
+  })
+);
     
     // Send email
     try {
@@ -305,7 +359,7 @@ app.post('/api/meetings/create', authMiddleware, async (req, res) => {
       console.log('Email error:', emailErr.message);
     }
     
-    res.json({ meetingId, uniqueLink, message: 'Meeting created and email sent' });
+    res.json({ meetingId, uniqueLink, slots: insertedSlots, message: 'Meeting created and email sent' });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -320,6 +374,9 @@ app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
     if (!slotId) {
       return res.status(400).json({ error: 'Slot ID required' });
     }
+
+    const numericSlotId = parseInt(slotId, 10);
+if (isNaN(numericSlotId)) return res.status(400).json({ error: 'Invalid Slot ID' });
 
     const meetingResult = await pool.query(
       'SELECT * FROM meetings WHERE unique_link = $1',
@@ -485,6 +542,20 @@ async function deleteOutlookEvent(token, eventId) {
     console.log('Outlook event deletion error:', err.message);
   }
 }
+
+
+app.get('/api/meetings/:uniqueLink', async (req, res) => {
+  try {
+    const { uniqueLink } = req.params;
+    const meeting = await pool.query('SELECT id FROM meetings WHERE unique_link=$1', [uniqueLink]);
+    if (meeting.rows.length === 0) return res.status(404).json({ error: 'Meeting not found' });
+
+    const slots = await pool.query('SELECT id, slot_time, is_selected FROM slots WHERE meeting_id=$1', [meeting.rows[0].id]);
+    res.json({ slots: slots.rows });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 
 // Initialize and Start
 initDb().then(() => {

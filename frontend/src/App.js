@@ -297,17 +297,22 @@ function SelectSlotPage() {
   const [message, setMessage] = useState('');
   const uniqueLink = window.location.pathname.split('/').pop();
 
-  useEffect(() => {
-    // In production, fetch meeting details using uniqueLink
-    setSlots([
-      '9:00 AM', '10:00 AM', '11:00 AM', '2:00 PM', '3:00 PM'
-    ]);
-  }, []);
+ useEffect(() => {
+  const fetchSlots = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/meetings/${uniqueLink}`);
+      setSlots(res.data.slots);
+    } catch (err) {
+      setMessage('Error loading meeting slots');
+    }
+  };
+  fetchSlots();
+}, [uniqueLink]);
 
   const handleSelectSlot = async (slot) => {
     try {
       const response = await axios.post(`${API_URL}/api/meetings/select-slot/${uniqueLink}`, {
-        slotId: slot
+        slotId: slot.id
       });
       setMessage('✓ Slot selected! Confirmation email sent.');
     } catch (err) {
