@@ -7,7 +7,6 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const axios = require('axios');
-// near top of file, after requiring axios
 axios.defaults.timeout = 7000; // 7s global timeout to avoid long blocking waits
 
 const nodemailer = require('nodemailer');
@@ -26,12 +25,12 @@ const pool = new Pool({
     }
 });
 
-// Email Configuration
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: "smtp.sendgrid.net",
+  port: 587,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
+    user: "apikey",
+    pass: process.env.SENDGRID_API_KEY
   }
 });
 
@@ -97,68 +96,6 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'CalSync backend is running' });
 });
 
-app.post('/api/auth/google-callback', authMiddleware, async (req, res) => {
-  try {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ error: 'Authorization code required' });
-
-    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      code,
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
-      grant_type: 'authorization_code'
-    });
-
-    await pool.query(
-      'UPDATE users SET google_token = $1 WHERE id = $2',
-      [tokenResponse.data.access_token, req.userId]
-    );
-
-    res.json({ message: 'Google calendar connected' });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-
-app.get('/api/meetings/:uniqueLink', async (req, res) => {
-    try {
-        const { uniqueLink } = req.params;
-
-        const meetingResult = await pool.query(
-            'SELECT id, user_id, attendee_email, attendee_name, unique_link, selected_slot, status, created_at FROM meetings WHERE unique_link = $1',
-            [uniqueLink]
-        );
-
-        if (meetingResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Meeting not found' });
-        }
-
-        const meeting = meetingResult.rows[0];
-
-        const slotsResult = await pool.query(
-            'SELECT id, slot_time, is_selected FROM slots WHERE meeting_id = $1 ORDER BY slot_time',
-            [meeting.id]
-        );
-
-        res.json({
-            meeting: {
-                id: meeting.id,
-                attendeeEmail: meeting.attendee_email,
-                attendeeName: meeting.attendee_name,
-                status: meeting.status,
-                selectedSlot: meeting.selected_slot
-            },
-            slots: slotsResult.rows // each row: { id, slot_time, is_selected }
-        });
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-});
-
-
-// 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
     try {
@@ -213,7 +150,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Google OAuth Callback
+// Google OAuth Callback (KEPT - SINGLE DEFINITION)
 app.post('/api/auth/google-callback', authMiddleware, async (req, res) => {
     try {
         const { code } = req.body;
@@ -318,7 +255,6 @@ app.get('/api/calendar/available-slots', authMiddleware, async (req, res) => {
 });
 
 // Create Meeting with Slots
-// Create Meeting with Slots
 app.post('/api/meetings/create', authMiddleware, async (req, res) => {
   try {
     const { attendeeEmail, attendeeName, slots } = req.body;
@@ -370,16 +306,48 @@ app.post('/api/meetings/create', authMiddleware, async (req, res) => {
       console.log('Email sending error:', emailErr.message);
     }
 
-    // DO NOT return uniqueLink to frontend
     res.json({ message: 'Meeting created and email sent' });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
+// Get Meeting Slots (Public endpoint)
+app.get('/api/meetings/:uniqueLink', async (req, res) => {
+    try {
+        const { uniqueLink } = req.params;
 
+        const meetingResult = await pool.query(
+            'SELECT id, user_id, attendee_email, attendee_name, unique_link, selected_slot, status, created_at FROM meetings WHERE unique_link = $1',
+            [uniqueLink]
+        );
 
-// Select Slot (Public endpoint)
+        if (meetingResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Meeting not found' });
+        }
+
+        const meeting = meetingResult.rows[0];
+
+        const slotsResult = await pool.query(
+            'SELECT id, slot_time, is_selected FROM slots WHERE meeting_id = $1 ORDER BY slot_time',
+            [meeting.id]
+        );
+
+        res.json({
+            meeting: {
+                id: meeting.id,
+                attendeeEmail: meeting.attendee_email,
+                attendeeName: meeting.attendee_name,
+                status: meeting.status,
+                selectedSlot: meeting.selected_slot
+            },
+            slots: slotsResult.rows
+        });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
 // Select Slot (Public endpoint)
 app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
     try {
@@ -393,7 +361,7 @@ app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
         const numericSlotId = parseInt(slotId, 10);
         if (isNaN(numericSlotId)) return res.status(400).json({ error: 'Invalid Slot ID' });
 
-        // fetch meeting by link
+        // Fetch meeting by link
         const meetingResult = await pool.query(
             'SELECT * FROM meetings WHERE unique_link = $1',
             [uniqueLink]
@@ -405,7 +373,7 @@ app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
 
         const meeting = meetingResult.rows[0];
 
-        // verify the slot belongs to this meeting
+        // Verify the slot belongs to this meeting
         const slotCheck = await pool.query('SELECT * FROM slots WHERE id = $1 AND meeting_id = $2', [numericSlotId, meeting.id]);
         if (slotCheck.rows.length === 0) {
             return res.status(404).json({ error: 'Slot not found for this meeting' });
@@ -464,8 +432,6 @@ app.post('/api/meetings/select-slot/:uniqueLink', async (req, res) => {
     }
 });
 
-
-
 // Helper Functions
 function generateAvailableSlots(events, date) {
     const slots = [];
@@ -513,8 +479,6 @@ async function createGoogleEvent(userId, slotTime, attendeeEmail) {
   }
 }
 
-
-
 async function createOutlookEvent(userId, slotTime, attendeeEmail) {
   try {
     const userResult = await pool.query('SELECT outlook_token FROM users WHERE id = $1', [userId]);
@@ -559,9 +523,6 @@ async function deleteOutlookEvent(token, eventId) {
         console.log('Outlook event deletion error:', err.message);
     }
 }
-
-
-
 
 // Initialize and Start
 initDb().then(() => {
