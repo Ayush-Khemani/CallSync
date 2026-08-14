@@ -1,21 +1,16 @@
-const nodemailer = require('nodemailer');
+const sendgrid = require('@sendgrid/mail');
 const config = require('../config/env');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.sendgrid.net',
-  port: 587,
-  auth: {
-    user: 'apikey',
-    pass: config.sendgridApiKey,
-  },
-});
+if (config.sendgridApiKey) {
+  sendgrid.setApiKey(config.sendgridApiKey);
+}
 
 async function sendMeetingRequest({ attendeeEmail, attendeeName, slots, uniqueLink }) {
   if (!config.sendgridApiKey) {
     return;
   }
 
-  await transporter.sendMail({
+  await sendgrid.send({
     from: config.emailFrom,
     to: attendeeEmail,
     subject: 'Meeting request from CallSync',
@@ -32,14 +27,14 @@ async function sendMeetingConfirmation({ attendeeEmail, hostEmail, attendeeName,
     return;
   }
 
-  await transporter.sendMail({
+  await sendgrid.send({
     from: config.emailFrom,
     to: attendeeEmail,
     subject: 'Meeting confirmed',
     html: `<p>Your meeting has been confirmed for ${selectedSlot}.</p>`,
   });
 
-  await transporter.sendMail({
+  await sendgrid.send({
     from: config.emailFrom,
     to: hostEmail,
     subject: 'Meeting confirmed',

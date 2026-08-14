@@ -122,10 +122,12 @@ npm run migrate
 Backend:
 
 - `render.yaml` defines a Render web service for `Backend`.
-- Set the backend environment variables in Render.
-- Attach a Postgres database and set `DATABASE_URL`.
-- `npm run migrate` runs before deploy through `preDeployCommand`.
+- The Blueprint defines a Render Postgres database and injects `DATABASE_URL` with `fromDatabase`.
+- The backend runs migrations on startup. This keeps the Free web service compatible because Render pre-deploy commands require a paid web service.
+- Set the remaining secret/config values in Render: `FRONTEND_URL`, `SENDGRID_API_KEY`, `EMAIL_FROM`, Google OAuth credentials, and Outlook OAuth credentials.
+- Render can generate `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY` from the Blueprint.
 - `/api/health` is configured as the health check.
+- Free Render Postgres databases expire after 30 days. Upgrade the database before using CallSync for a real production launch.
 
 Frontend:
 

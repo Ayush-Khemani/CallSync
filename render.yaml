@@ -1,16 +1,17 @@
 services:
   - type: web
     name: callsync-api
-    env: node
+    runtime: node
     rootDir: Backend
     plan: free
     buildCommand: npm ci
-    preDeployCommand: npm run migrate
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 20.19.0
       - key: FRONTEND_URL
         sync: false
       - key: RATE_LIMIT_WINDOW_MS
@@ -18,11 +19,13 @@ services:
       - key: RATE_LIMIT_MAX
         value: 100
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: callsync-db
+          property: connectionString
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
       - key: TOKEN_ENCRYPTION_KEY
-        sync: false
+        generateValue: true
       - key: SENDGRID_API_KEY
         sync: false
       - key: EMAIL_FROM
@@ -39,3 +42,7 @@ services:
         sync: false
       - key: OUTLOOK_REDIRECT_URI
         sync: false
+
+databases:
+  - name: callsync-db
+    plan: free
