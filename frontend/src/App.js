@@ -26,54 +26,88 @@ function LandingPage() {
       <nav className="topbar">
         <Brand />
         <div>
+          <a href="#product">Product</a>
+          <a href="#use-cases">Use cases</a>
           <a href="#workflow">Workflow</a>
-          <a href="#teams">Teams</a>
           <Link to="/login">Sign in</Link>
         </div>
       </nav>
       <section className="hero">
-        <div className="hero-art" aria-hidden="true">
-          <div className="calendar-glass">
-            <header><span>Today</span><b>12 open windows</b></header>
-            {['09:00', '10:30', '12:00', '14:00', '15:30'].map((time, index) => (
-              <p className={`bar b${index + 1}`} key={time}><span>{time}</span><i /></p>
-            ))}
+        <div className="hero-desk" aria-hidden="true">
+          <div className="desk-board">
+            <div className="desk-window host-window">
+              <header><b>Host console</b><span>New request</span></header>
+              <div className="request-stack">
+                <p><span>Guest</span><b>Maya Chen</b></p>
+                <p><span>Duration</span><b>45 min</b></p>
+                <p><span>Buffer</span><b>15 min</b></p>
+              </div>
+              <div className="availability-strip">
+                <i className="open" /><i /><i className="open wide" /><i /><i className="open" />
+              </div>
+            </div>
+            <div className="desk-window booking-window">
+              <header><b>Booking page</b><span>callsync.io/maya</span></header>
+              <div className="week-row">{['Mon', 'Tue', 'Wed', 'Thu'].map((day) => <span key={day}>{day}</span>)}</div>
+              <div className="time-grid">{['9:30', '11:00', '2:00', '4:30', '5:00', '5:30'].map((time, index) => <button className={index === 2 ? 'chosen' : ''} key={time}>{time}</button>)}</div>
+            </div>
+            <div className="desk-window ledger-window">
+              <header><b>Meeting ledger</b><span>Live</span></header>
+              {['Pending invite sent', 'Guest selected slot', 'Calendar hold created'].map((item, index) => <p key={item}><i>{index + 1}</i><span>{item}</span></p>)}
+            </div>
           </div>
-          <div className="floating-note"><b>Priya selected 2:30 PM</b><span>Confirmed with calendar hold</span></div>
-          <div className="flow-note"><span>Google</span><i /><span>Outlook</span><i /><span>Email sent</span></div>
         </div>
         <div className="hero-copy">
-          <p className="eyebrow">Calendar-first scheduling for modern teams</p>
-          <h1>CallSync turns scattered availability into confirmed meetings.</h1>
-          <p>Create polished booking requests, share curated time windows, and let guests pick a slot without the back-and-forth.</p>
+          <p className="eyebrow">Scheduling links with an operator's edge</p>
+          <h1>Send fewer links. Close the loop on every meeting.</h1>
+          <p>CallSync gives hosts a clean way to design availability, send a focused booking link, and track what happened after the invite leaves their hands.</p>
           <div className="hero-actions">
-            <Link className="btn primary" to={hasToken ? '/dashboard' : '/login'}>{hasToken ? 'Open dashboard' : 'Start scheduling'}</Link>
-            <a className="btn light" href="#workflow">See workflow</a>
+            <Link className="btn primary" to={hasToken ? '/dashboard' : '/login'}>{hasToken ? 'Open dashboard' : 'Create your first link'}</Link>
+            <a className="btn light" href="#product">View product tour</a>
           </div>
         </div>
       </section>
-      <section className="proof">
-        <article><b>3-step flow</b><span>Create, share, confirm</span></article>
-        <article><b>Calendar aware</b><span>Google and Outlook ready</span></article>
-        <article><b>Host control</b><span>Status, links, cancellations</span></article>
+      <section className="proof" aria-label="CallSync product pillars">
+        <article><b>Availability rules</b><span>Duration, buffers, intervals, timezone, and work hours in one place.</span></article>
+        <article><b>Guest-ready links</b><span>A booking experience that feels intentional, not like a form.</span></article>
+        <article><b>Host visibility</b><span>Pending, confirmed, and cancelled requests stay easy to manage.</span></article>
       </section>
-      <section className="section" id="workflow">
-        <p className="eyebrow">Built for real coordination</p>
-        <h2>Every invite moves through a clear operating system.</h2>
-        <div className="features">
-          {[
-            ['01', 'Design the meeting window', 'Pick date, duration, buffer, interval, timezone, and working hours before sharing anything.'],
-            ['02', 'Send one clean link', 'Guests choose from approved slots, so hosts stay in control without managing reply threads.'],
-            ['03', 'Track the outcome', 'See pending, confirmed, and cancelled meetings in one dashboard with copyable booking links.'],
-          ].map(([num, title, text]) => <article key={num}><span>{num}</span><h3>{title}</h3><p>{text}</p></article>)}
+
+      <section className="product-tour" id="product">
+        <div>
+          <p className="eyebrow">Product tour</p>
+          <h2>A scheduling workspace, not a link generator.</h2>
+          <p>Most booking tools focus on the page your guest sees. CallSync starts one step earlier: with the host deciding exactly what should be offered, tracked, and confirmed.</p>
+        </div>
+        <div className="tour-grid">
+          <article><span>01</span><h3>Shape the request</h3><p>Define the guest, date, time window, duration, buffer, and timezone before availability is generated.</p></article>
+          <article><span>02</span><h3>Offer curated slots</h3><p>Share a set of times you actually want booked instead of exposing your entire calendar.</p></article>
+          <article><span>03</span><h3>Manage the lifecycle</h3><p>Open, copy, cancel, and review status from a host dashboard that keeps work moving.</p></article>
         </div>
       </section>
-      <section className="section split" id="teams">
-        <div><p className="eyebrow">Why it matters</p><h2>Scheduling should feel like infrastructure, not admin work.</h2></div>
-        <div className="mini-grid">
-          <article><b>Less friction</b><span>Remove the back-and-forth before calls begin.</span></article>
-          <article><b>More trust</b><span>Give every invitee a fast, intentional booking experience.</span></article>
+
+      <section className="use-case-band" id="use-cases">
+        <div className="section-kicker">
+          <p className="eyebrow">Use cases</p>
+          <h2>Built for people who cannot afford loose scheduling.</h2>
         </div>
+        <div className="use-cases">
+          <article><b>Founders</b><span>Investor calls, customer discovery, advisor meetings, candidate screens.</span></article>
+          <article><b>Sales teams</b><span>Demos, qualification calls, handoffs, follow-ups with cleaner status tracking.</span></article>
+          <article><b>Operators</b><span>Interviews, vendor meetings, internal reviews, and fast calendar coordination.</span></article>
+        </div>
+      </section>
+
+      <section className="workflow-band" id="workflow">
+        <div>
+          <p className="eyebrow">Workflow</p>
+          <h2>The meeting loop should be visible from start to finish.</h2>
+        </div>
+        <ol>
+          <li><b>Create</b><span>Set the meeting brief and the availability constraints.</span></li>
+          <li><b>Send</b><span>Share a single booking link that reflects only approved options.</span></li>
+          <li><b>Confirm</b><span>Let the guest select once, then keep the host dashboard up to date.</span></li>
+        </ol>
       </section>
     </main>
   );
