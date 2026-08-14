@@ -10,11 +10,26 @@ jobs:
   backend:
     name: Backend checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: callsync_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d callsync_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: Backend
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/callsync
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/callsync_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/callsync_test
       JWT_SECRET: ci-jwt-secret
       NODE_ENV: test
     steps:
@@ -36,6 +51,9 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Run integration tests
+        run: npm run test:integration
 
       - name: App import smoke test
         run: node -e "require('./src/app'); console.log('backend app require ok')"

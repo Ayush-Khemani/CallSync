@@ -8,6 +8,7 @@
     "dev": "nodemon index.js",
     "check": "node scripts/check-syntax.js",
     "test": "node tests/app.test.js",
+    "test:integration": "node tests/integration.test.js",
     "migrate": "node src/db/migrate.js"
   },
   "keywords": [],

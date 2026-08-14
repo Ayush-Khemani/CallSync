@@ -67,6 +67,15 @@ npm run check
 npm test
 ```
 
+Database-backed integration tests:
+
+```bash
+cd Backend
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/callsync_test npm run test:integration
+```
+
+The integration test database is reset with `TRUNCATE ... CASCADE`, so point `TEST_DATABASE_URL` only at a disposable test database.
+
 Frontend:
 
 ```bash
