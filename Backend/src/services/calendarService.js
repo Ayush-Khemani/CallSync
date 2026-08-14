@@ -123,13 +123,15 @@ async function requestWithRefresh(encryptedToken, refreshTokenFn, onTokenRefresh
   }
 }
 
-async function fetchGoogleEvents(encryptedToken, date, options = {}) {
+async function fetchGoogleEvents(encryptedToken, windowStart, windowEnd, options = {}) {
   const response = await requestWithRefresh(encryptedToken, refreshGoogleToken, options.onTokenRefresh, (token) => (
     axios.get('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
       headers: { Authorization: `Bearer ${token}` },
       params: {
-        timeMin: new Date(date).toISOString(),
+        timeMin: new Date(windowStart).toISOString(),
+        timeMax: new Date(windowEnd).toISOString(),
         singleEvents: true,
+        orderBy: 'startTime',
       },
     })
   ));
@@ -141,10 +143,15 @@ async function fetchGoogleEvents(encryptedToken, date, options = {}) {
   return response.data.items || [];
 }
 
-async function fetchOutlookEvents(encryptedToken, options = {}) {
+async function fetchOutlookEvents(encryptedToken, windowStart, windowEnd, options = {}) {
   const response = await requestWithRefresh(encryptedToken, refreshOutlookToken, options.onTokenRefresh, (token) => (
-    axios.get('https://graph.microsoft.com/v1.0/me/calendar/events', {
+    axios.get('https://graph.microsoft.com/v1.0/me/calendarView', {
       headers: { Authorization: `Bearer ${token}` },
+      params: {
+        startDateTime: new Date(windowStart).toISOString(),
+        endDateTime: new Date(windowEnd).toISOString(),
+        $orderby: 'start/dateTime',
+      },
     })
   ));
 

@@ -185,6 +185,12 @@ function CreateMeetingTab() {
   const [attendeeEmail, setAttendeeEmail] = useState('');
   const [attendeeName, setAttendeeName] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [bufferMinutes, setBufferMinutes] = useState(0);
+  const [slotIntervalMinutes, setSlotIntervalMinutes] = useState(30);
+  const [workStartHour, setWorkStartHour] = useState(9);
+  const [workEndHour, setWorkEndHour] = useState(17);
+  const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlots, setSelectedSlots] = useState([]);
   const [message, setMessage] = useState('');
@@ -193,7 +199,15 @@ function CreateMeetingTab() {
   const fetchAvailableSlots = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/calendar/available-slots`, {
-        params: { date: selectedDate },
+        params: {
+          date: selectedDate,
+          durationMinutes,
+          bufferMinutes,
+          slotIntervalMinutes,
+          workStartHour,
+          workEndHour,
+          timeZone,
+        },
         headers: { Authorization: `Bearer ${token}` }
       });
       setAvailableSlots(response.data.availableSlots);
@@ -266,6 +280,53 @@ function CreateMeetingTab() {
           onChange={(e) => setSelectedDate(e.target.value)}
           style={styles.input}
         />
+
+        <div style={styles.preferencesGrid}>
+          <label style={styles.fieldLabel}>
+            Duration
+            <select value={durationMinutes} onChange={(e) => setDurationMinutes(Number(e.target.value))} style={styles.input}>
+              <option value={15}>15 min</option>
+              <option value={30}>30 min</option>
+              <option value={45}>45 min</option>
+              <option value={60}>60 min</option>
+            </select>
+          </label>
+
+          <label style={styles.fieldLabel}>
+            Buffer
+            <select value={bufferMinutes} onChange={(e) => setBufferMinutes(Number(e.target.value))} style={styles.input}>
+              <option value={0}>None</option>
+              <option value={5}>5 min</option>
+              <option value={10}>10 min</option>
+              <option value={15}>15 min</option>
+              <option value={30}>30 min</option>
+            </select>
+          </label>
+
+          <label style={styles.fieldLabel}>
+            Interval
+            <select value={slotIntervalMinutes} onChange={(e) => setSlotIntervalMinutes(Number(e.target.value))} style={styles.input}>
+              <option value={15}>15 min</option>
+              <option value={30}>30 min</option>
+              <option value={60}>60 min</option>
+            </select>
+          </label>
+
+          <label style={styles.fieldLabel}>
+            Start
+            <input type="number" min="0" max="23" value={workStartHour} onChange={(e) => setWorkStartHour(Number(e.target.value))} style={styles.input} />
+          </label>
+
+          <label style={styles.fieldLabel}>
+            End
+            <input type="number" min="1" max="24" value={workEndHour} onChange={(e) => setWorkEndHour(Number(e.target.value))} style={styles.input} />
+          </label>
+
+          <label style={styles.fieldLabel}>
+            Timezone
+            <input type="text" value={timeZone} onChange={(e) => setTimeZone(e.target.value)} style={styles.input} />
+          </label>
+        </div>
 
         <button onClick={fetchAvailableSlots} style={styles.button}>
           Fetch Available Slots
@@ -417,6 +478,8 @@ const styles = {
   dashboard: { backgroundColor: '#fff', padding: '30px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '90%', maxWidth: '1000px' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px' },
   input: { padding: '10px', border: '1px solid #ddd', borderRadius: '5px', fontSize: '14px' },
+  preferencesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' },
+  fieldLabel: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '14px', fontWeight: '600', color: '#333' },
   button: { padding: '10px 20px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '14px' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
   tabs: { display: 'flex', gap: '10px', marginBottom: '20px' },

@@ -6,6 +6,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 process.env.NODE_ENV = 'test';
 
 const app = require('../src/app');
+const { generateAvailableSlots } = require('../src/services/availabilityService');
 
 function request(method, path, body, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -89,6 +90,27 @@ test('registration validates email and password before database writes', async (
   assert.deepEqual(invalidEmail.body, { error: 'Enter a valid email address' });
   assert.equal(shortPassword.statusCode, 400);
   assert.deepEqual(shortPassword.body, { error: 'Password must be at least 8 characters' });
+});
+
+test('availability supports custom duration, interval, and buffer time', () => {
+  const slots = generateAvailableSlots([
+    {
+      start: { dateTime: '2026-09-01T10:00:00.000Z' },
+      end: { dateTime: '2026-09-01T11:00:00.000Z' },
+    },
+  ], '2026-09-01', {
+    timeZone: 'UTC',
+    workStartHour: 9,
+    workEndHour: 12,
+    durationMinutes: 30,
+    slotIntervalMinutes: 30,
+    bufferMinutes: 15,
+  });
+
+  assert.deepEqual(slots, [
+    '2026-09-01T09:00:00.000Z',
+    '2026-09-01T11:30:00.000Z',
+  ]);
 });
 
 (async () => {

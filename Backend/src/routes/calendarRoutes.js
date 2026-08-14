@@ -4,7 +4,7 @@ const authMiddleware = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
 const { fetchGoogleEvents, fetchOutlookEvents, serializeCalendarToken } = require('../services/calendarService');
-const { generateAvailableSlots } = require('../services/availabilityService');
+const { generateAvailableSlots, getAvailabilityWindow } = require('../services/availabilityService');
 
 const router = express.Router();
 
@@ -12,6 +12,19 @@ router.get('/calendar/available-slots', authMiddleware, asyncHandler(async (req,
   const { date } = req.query;
   if (!date) {
     throw new HttpError(400, 'Date parameter required');
+  }
+
+  const availabilityOptions = {
+    workStartHour: req.query.workStartHour,
+    workEndHour: req.query.workEndHour,
+    durationMinutes: req.query.durationMinutes,
+    slotIntervalMinutes: req.query.slotIntervalMinutes,
+    bufferMinutes: req.query.bufferMinutes,
+    timeZone: req.query.timeZone,
+  };
+  const availabilityWindow = getAvailabilityWindow(date, availabilityOptions);
+  if (!availabilityWindow) {
+    throw new HttpError(400, 'Valid date and working hours are required');
   }
 
   const userResult = await pool.query('SELECT google_token, outlook_token FROM users WHERE id = $1', [req.userId]);
@@ -30,11 +43,16 @@ router.get('/calendar/available-slots', authMiddleware, asyncHandler(async (req,
   );
 
   const [googleEvents, outlookEvents] = await Promise.all([
-    fetchGoogleEvents(user.google_token, date, { onTokenRefresh: saveGoogleToken }).catch(() => []),
-    fetchOutlookEvents(user.outlook_token, { onTokenRefresh: saveOutlookToken }).catch(() => []),
+    fetchGoogleEvents(user.google_token, availabilityWindow.start, availabilityWindow.end, { onTokenRefresh: saveGoogleToken }).catch(() => []),
+    fetchOutlookEvents(user.outlook_token, availabilityWindow.start, availabilityWindow.end, { onTokenRefresh: saveOutlookToken }).catch(() => []),
   ]);
 
-  res.json({ availableSlots: generateAvailableSlots([...googleEvents, ...outlookEvents], date) });
+  res.json({
+    availableSlots: generateAvailableSlots([...googleEvents, ...outlookEvents], date, availabilityOptions),
+    timeZone: availabilityWindow.options.timeZone,
+    durationMinutes: availabilityWindow.options.slotMinutes,
+    bufferMinutes: availabilityWindow.options.bufferMinutes,
+  });
 }));
 
 module.exports = router;
