@@ -93,7 +93,7 @@ export function getPipelineEmptyState(stageId) {
   return states[stageId] || states.all;
 }
 
-const MEETING_TEMPLATES = {
+export const MEETING_TEMPLATES = {
   founder: {
     label: 'Founder sales',
     type: 'Customer discovery',
@@ -144,7 +144,7 @@ const MEETING_TEMPLATES = {
   },
 };
 
-function inferMeetingTemplate(text) {
+export function inferMeetingTemplate(text) {
   const prompt = text.toLowerCase();
   if (prompt.includes('investor') || prompt.includes('fundraising') || prompt.includes('vc')) return 'investor';
   if (prompt.includes('candidate') || prompt.includes('interview') || prompt.includes('recruit')) return 'recruiting';
@@ -152,11 +152,102 @@ function inferMeetingTemplate(text) {
   return 'founder';
 }
 
-function inferDuration(text, fallback) {
+export function inferDuration(text, fallback) {
   const match = text.match(/(\d{2,3})\s*(minute|min|mins)/i);
   if (!match) return fallback;
   const value = Number(match[1]);
   return [15, 30, 45, 60].includes(value) ? value : fallback;
+}
+
+function formatInputDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function inferSelectedDate(text, now = new Date()) {
+  const prompt = text.toLowerCase();
+  const date = new Date(now);
+  if (prompt.includes('tomorrow')) {
+    date.setDate(date.getDate() + 1);
+    return formatInputDate(date);
+  }
+  if (prompt.includes('next week')) {
+    date.setDate(date.getDate() + 7);
+    return formatInputDate(date);
+  }
+  return '';
+}
+
+function inferWorkWindow(text, fallback) {
+  const prompt = text.toLowerCase();
+  if (prompt.includes('morning')) return { workStartHour: 9, workEndHour: 12, label: 'Morning window' };
+  if (prompt.includes('afternoon')) return { workStartHour: 13, workEndHour: 17, label: 'Afternoon window' };
+  if (prompt.includes('evening')) return { workStartHour: 17, workEndHour: 20, label: 'Evening window' };
+  return { workStartHour: fallback.workStartHour, workEndHour: fallback.workEndHour, label: 'Template working window' };
+}
+
+function inferGuest(text) {
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '';
+  const nameMatch = text.match(/\b(?:with|for|to)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){0,2})\b/);
+  return {
+    attendeeEmail: email,
+    attendeeName: nameMatch ? nameMatch[1].trim() : '',
+  };
+}
+
+function inferQuestions(text, templateQuestions) {
+  const prompt = text.toLowerCase();
+  const questions = [...templateQuestions];
+
+  if (prompt.includes('budget') && !questions.some((question) => question.toLowerCase().includes('budget'))) {
+    questions.push('What budget range should we keep in mind?');
+  }
+  if ((prompt.includes('timeline') || prompt.includes('deadline')) && !questions.some((question) => question.toLowerCase().includes('deadline'))) {
+    questions.push('What timeline or deadline matters most?');
+  }
+  if (prompt.includes('decision') && !questions.some((question) => question.toLowerCase().includes('decision'))) {
+    questions.push('Who is involved in the decision?');
+  }
+
+  return questions.slice(0, 5);
+}
+
+export function buildMeetingDraftFromPrompt(text, options = {}) {
+  const prompt = text.trim();
+  const templateKey = inferMeetingTemplate(prompt);
+  const template = MEETING_TEMPLATES[templateKey];
+  const window = inferWorkWindow(prompt, template);
+  const guest = inferGuest(prompt);
+  const durationMinutes = inferDuration(prompt, template.durationMinutes);
+  const selectedDate = inferSelectedDate(prompt, options.now);
+
+  return {
+    templateKey,
+    formPatch: {
+      ...guest,
+      ...(selectedDate ? { selectedDate } : {}),
+      durationMinutes,
+      bufferMinutes: template.bufferMinutes,
+      slotIntervalMinutes: template.slotIntervalMinutes,
+      workStartHour: window.workStartHour,
+      workEndHour: window.workEndHour,
+    },
+    brief: {
+      type: template.type,
+      goal: template.goal,
+      questions: inferQuestions(prompt, template.questions),
+      message: template.message,
+    },
+    insights: [
+      `${template.label} intent`,
+      `${durationMinutes} minute call`,
+      `${template.bufferMinutes} minute buffer`,
+      window.label,
+      selectedDate ? `Date set to ${selectedDate}` : 'Host chooses date',
+    ],
+  };
 }
 
 function LandingPage() {
@@ -501,33 +592,32 @@ function CreateMeeting() {
   const [form, setForm] = useState({ attendeeEmail: '', attendeeName: '', selectedDate: '', durationMinutes: 60, bufferMinutes: 0, slotIntervalMinutes: 30, workStartHour: 9, workEndHour: 17, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' });
   const [brief, setBrief] = useState({ type: 'General meeting', goal: 'Create a focused meeting request and keep the invite visible until it is booked.', questions: ['What should we cover?', 'Is there anything I should review first?'], message: 'Here are a few times that work on my side. Pick the one that is best for you.' });
   const [assistantPrompt, setAssistantPrompt] = useState('');
+  const [assistantDraft, setAssistantDraft] = useState(null);
   const [slots, setSlots] = useState([]);
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState('');
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
-  function applyTemplate(key, prompt = '') {
-    const template = MEETING_TEMPLATES[key];
+  function applyDraft(draft) {
     setForm((current) => ({
       ...current,
-      durationMinutes: inferDuration(prompt, template.durationMinutes),
-      bufferMinutes: template.bufferMinutes,
-      slotIntervalMinutes: template.slotIntervalMinutes,
-      workStartHour: template.workStartHour,
-      workEndHour: template.workEndHour,
+      ...Object.fromEntries(Object.entries(draft.formPatch).filter(([, value]) => value !== '')),
     }));
-    setBrief({
-      type: template.type,
-      goal: template.goal,
-      questions: template.questions,
-      message: template.message,
-    });
+    setBrief(draft.brief);
+    setAssistantDraft(draft);
     setMessage('Meeting brief applied. Add the guest and date, then generate slots.');
   }
 
+  function applyTemplate(key) {
+    applyDraft(buildMeetingDraftFromPrompt(MEETING_TEMPLATES[key].label));
+  }
+
   function runAssistant() {
-    const key = inferMeetingTemplate(assistantPrompt);
-    applyTemplate(key, assistantPrompt);
+    if (!assistantPrompt.trim()) {
+      setMessage('Describe the meeting first, or choose a production template.');
+      return;
+    }
+    applyDraft(buildMeetingDraftFromPrompt(assistantPrompt));
   }
 
   async function fetchSlots() {
@@ -574,6 +664,7 @@ function CreateMeeting() {
         <aside>
           <span>{brief.type}</span>
           <h4>{brief.goal}</h4>
+          {assistantDraft && <div className="brief-summary">{assistantDraft.insights.map((item) => <small key={item}>{item}</small>)}</div>}
           <ul>{brief.questions.map((question) => <li key={question}>{question}</li>)}</ul>
           <p>{brief.message}</p>
         </aside>

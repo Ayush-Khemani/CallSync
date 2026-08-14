@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import App, { getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages, getPipelineEmptyState } from './App';
+import App, { buildMeetingDraftFromPrompt, getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages, getPipelineEmptyState } from './App';
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -88,4 +88,25 @@ test('explains empty pipeline stages', () => {
   expect(getPipelineEmptyState('all')).toMatchObject({
     title: 'Your meeting pipeline is empty',
   });
+});
+
+test('builds a meeting draft from natural language', () => {
+  const draft = buildMeetingDraftFromPrompt(
+    'Create a 45 minute investor intro with Maya Chen maya@northstar.vc tomorrow afternoon and ask about decision process',
+    { now: new Date('2026-08-14T09:00:00') },
+  );
+
+  expect(draft.templateKey).toBe('investor');
+  expect(draft.formPatch).toMatchObject({
+    attendeeEmail: 'maya@northstar.vc',
+    attendeeName: 'Maya Chen',
+    selectedDate: '2026-08-15',
+    durationMinutes: 45,
+    bufferMinutes: 15,
+    workStartHour: 13,
+    workEndHour: 17,
+  });
+  expect(draft.brief.type).toBe('Investor meeting');
+  expect(draft.brief.questions).toContain('Who is involved in the decision?');
+  expect(draft.insights).toContain('Afternoon window');
 });
