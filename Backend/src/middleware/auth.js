@@ -9,7 +9,7 @@ function authMiddleware(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret);
+    const decoded = jwt.verify(token, config.getJwtSecret());
     req.userId = decoded.userId;
     return next();
   } catch (error) {
