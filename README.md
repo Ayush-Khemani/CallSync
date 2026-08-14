@@ -57,6 +57,24 @@ The backend has been split away from the original single-file prototype:
 - `src/services/*` owns calendar, email, and availability logic.
 - `src/utils/tokenCrypto.js` encrypts calendar access tokens when `TOKEN_ENCRYPTION_KEY` is configured.
 
+## Verification
+
+Backend:
+
+```bash
+cd Backend
+npm run check
+npm test
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm test -- --watchAll=false --runInBand
+npm run build
+```
+
 ## Local Setup
 
 Backend:
@@ -83,6 +101,30 @@ Generate a token encryption key:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
+Run database migrations:
+
+```bash
+cd Backend
+npm run migrate
+```
+
+## Deployment
+
+Backend:
+
+- `render.yaml` defines a Render web service for `Backend`.
+- Set the backend environment variables in Render.
+- Attach a Postgres database and set `DATABASE_URL`.
+- `npm run migrate` runs before deploy through `preDeployCommand`.
+- `/api/health` is configured as the health check.
+
+Frontend:
+
+- Deploy `frontend` as the Vercel project root.
+- Set `REACT_APP_API_URL` to the deployed backend URL.
+- Set Google and Outlook client IDs.
+- `frontend/vercel.json` keeps client-side routes working on refresh.
+
 ## Required Environment Variables
 
 Backend:
@@ -108,14 +150,11 @@ Frontend:
 
 ## Production Gaps Still To Close
 
-- Remove committed `Backend/node_modules` from git history/current tracked files.
-- Add refresh-token storage and automatic token refresh for Google and Outlook.
-- Add timezone-aware availability preferences per user.
-- Add meeting duration, buffer time, working hours, date ranges, and link expiry.
+- Add persistent host scheduling preferences instead of sending them per request.
+- Add link expiry.
 - Add cancellation and rescheduling flows.
 - Add rate limiting and request validation middleware.
-- Add full unit/integration tests.
-- Add CI for backend syntax checks, frontend tests, and builds.
+- Expand backend integration tests around auth, calendar refresh, meeting creation, and booking.
 - Add observability through Sentry or similar.
 - Add AI scheduling features only after the core workflow is reliable.
 

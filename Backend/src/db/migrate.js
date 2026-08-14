@@ -9,3 +9,15 @@ async function runMigrations() {
 }
 
 module.exports = { runMigrations };
+
+if (require.main === module) {
+  runMigrations()
+    .then(() => {
+      console.log('Database migrations completed');
+      return pool.end();
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+}
