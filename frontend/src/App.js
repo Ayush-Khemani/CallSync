@@ -224,8 +224,8 @@ function LoginPage() {
     <main className="auth-screen">
       <section className="auth-story">
         <Link to="/"><Brand /></Link>
-        <div><p className="eyebrow">Welcome to CallSync</p><h1>{isLogin ? 'Sign in to your scheduling command center.' : 'Create your CallSync workspace.'}</h1><p>Manage availability, booking links, and meeting confirmations from one focused workspace.</p></div>
-        <aside><span>Next best action</span><b>Review 4 pending invite links</b><small>Dashboard ready after sign-in</small></aside>
+        <div><p className="eyebrow">Welcome to CallSync</p><h1>{isLogin ? 'Sign in to your meeting pipeline.' : 'Create your CallSync workspace.'}</h1><p>Manage availability, booking links, follow-up risk, and meeting confirmations from one focused workspace.</p></div>
+        <aside><span>Next best action</span><b>Review pending invite links</b><small>Pipeline ready after sign-in</small></aside>
       </section>
       <section className="panel auth-panel">
         <p className="eyebrow">{isLogin ? 'Existing workspace' : 'New workspace'}</p>
@@ -246,7 +246,7 @@ function LoginPage() {
 function Dashboard() {
   const [tab, setTab] = useState('meetings');
   const navigate = useNavigate();
-  const tabs = [['meetings', 'Meetings'], ['create', 'Create'], ['calendars', 'Calendars']];
+  const tabs = [['meetings', 'Pipeline'], ['create', 'Create'], ['calendars', 'Calendars']];
 
   function logout() {
     localStorage.removeItem('token');
@@ -276,7 +276,7 @@ function Dashboard() {
         <button className="logout" onClick={logout}>Sign out</button>
       </aside>
       <section className="main">
-        <header className="main-head"><div><p className="eyebrow">Host workspace</p><h1>Run meeting coordination from one desk.</h1></div><button className="btn primary" onClick={() => setTab('create')}>New request</button></header>
+        <header className="main-head"><div><p className="eyebrow">Host workspace</p><h1>Manage your meeting pipeline from one desk.</h1></div><button className="btn primary" onClick={() => setTab('create')}>New request</button></header>
         {tab === 'meetings' && <Meetings />}
         {tab === 'create' && <CreateMeeting />}
         {tab === 'calendars' && <Calendars onGoogle={() => oauth('google')} onOutlook={() => oauth('outlook')} />}
