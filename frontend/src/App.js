@@ -37,9 +37,15 @@ function LoginPage() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1>CallSync - Meeting Scheduler</h1>
+    <div style={styles.authPage}>
+      <div style={styles.authCard}>
+        <div style={styles.brandRow}>
+          <div style={styles.brandMark}>CS</div>
+          <div>
+            <h1 style={styles.title}>CallSync</h1>
+            <p style={styles.subtitle}>Calendar-first scheduling</p>
+          </div>
+        </div>
         <form onSubmit={handleSubmit} style={styles.form}>
           <input
             type="email"
@@ -58,15 +64,15 @@ function LoginPage() {
             required
           />
           <button type="submit" style={styles.button}>
-            {isLogin ? 'Login' : 'Register'}
+            {isLogin ? 'Sign in' : 'Create account'}
           </button>
         </form>
 
         <button
           onClick={() => setIsLogin(!isLogin)}
-          style={{ ...styles.button, backgroundColor: '#6c757d' }}
+          style={styles.secondaryButton}
         >
-          {isLogin ? 'Create new account' : 'Back to login'}
+          {isLogin ? 'Create new account' : 'Back to sign in'}
         </button>
 
         {message && <p style={styles.message}>{message}</p>}
@@ -115,12 +121,15 @@ function Dashboard() {
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.appPage}>
       <div style={styles.dashboard}>
         <div style={styles.header}>
-          <h1>CallSync Dashboard</h1>
-          <button onClick={handleLogout} style={{ ...styles.button, backgroundColor: '#dc3545' }}>
-            Logout
+          <div>
+            <h1 style={styles.pageTitle}>CallSync</h1>
+            <p style={styles.subtitle}>Availability, links, and confirmations in one workflow</p>
+          </div>
+          <button onClick={handleLogout} style={styles.dangerButton}>
+            Sign out
           </button>
         </div>
 
@@ -128,7 +137,7 @@ function Dashboard() {
           <button
             style={{
               ...styles.tabButton,
-              backgroundColor: activeTab === 'connect-calendar' ? '#007bff' : '#f8f9fa'
+              ...(activeTab === 'connect-calendar' ? styles.activeTabButton : {})
             }}
             onClick={() => setActiveTab('connect-calendar')}
           >
@@ -137,7 +146,7 @@ function Dashboard() {
           <button
             style={{
               ...styles.tabButton,
-              backgroundColor: activeTab === 'create-meeting' ? '#007bff' : '#f8f9fa'
+              ...(activeTab === 'create-meeting' ? styles.activeTabButton : {})
             }}
             onClick={() => setActiveTab('create-meeting')}
           >
@@ -158,21 +167,22 @@ function Dashboard() {
 function ConnectCalendarTab({ onGoogleAuth, onOutlookAuth }) {
   return (
     <div style={styles.tabContent}>
-      <h2>Connect Your Calendars</h2>
-      <p>Synchronize your Google and Outlook calendars to see all your available slots.</p>
+      <h2 style={styles.sectionTitle}>Calendar Connections</h2>
 
       <div style={styles.calendarOptions}>
         <div style={styles.calendarCard}>
-          <h3>Google Calendar</h3>
+          <h3 style={styles.cardTitle}>Google Calendar</h3>
+          <p style={styles.mutedText}>Primary availability source for Gmail and Workspace users.</p>
           <button onClick={onGoogleAuth} style={{ ...styles.button, backgroundColor: '#4285f4' }}>
-            Connect Google Calendar
+            Connect Google
           </button>
         </div>
 
         <div style={styles.calendarCard}>
-          <h3>Outlook Calendar</h3>
+          <h3 style={styles.cardTitle}>Outlook Calendar</h3>
+          <p style={styles.mutedText}>Microsoft 365 calendar sync for work accounts.</p>
           <button onClick={onOutlookAuth} style={{ ...styles.button, backgroundColor: '#0078d4' }}>
-            Connect Outlook Calendar
+            Connect Outlook
           </button>
         </div>
       </div>
@@ -473,25 +483,37 @@ function OutlookAuthCallback() {
 
 // Styles
 const styles = {
-  container: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f5f5f5' },
-  card: { backgroundColor: '#fff', padding: '40px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', maxWidth: '500px', width: '100%' },
-  dashboard: { backgroundColor: '#fff', padding: '30px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '90%', maxWidth: '1000px' },
-  form: { display: 'flex', flexDirection: 'column', gap: '15px' },
-  input: { padding: '10px', border: '1px solid #ddd', borderRadius: '5px', fontSize: '14px' },
+  authPage: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '24px', backgroundColor: '#eef2f6' },
+  appPage: { minHeight: '100vh', padding: '32px', backgroundColor: '#eef2f6' },
+  authCard: { backgroundColor: '#fff', padding: '32px', borderRadius: '8px', boxShadow: '0 18px 60px rgba(15, 23, 42, 0.12)', maxWidth: '440px', width: '100%', border: '1px solid #dde5ee' },
+  dashboard: { backgroundColor: '#fff', padding: '28px', borderRadius: '8px', boxShadow: '0 18px 60px rgba(15, 23, 42, 0.10)', width: '100%', maxWidth: '1120px', margin: '0 auto', border: '1px solid #dde5ee' },
+  brandRow: { display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '28px' },
+  brandMark: { width: '44px', height: '44px', borderRadius: '8px', backgroundColor: '#0f766e', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: '700' },
+  title: { margin: 0, fontSize: '30px', color: '#102033' },
+  pageTitle: { margin: 0, fontSize: '28px', color: '#102033' },
+  sectionTitle: { margin: '0 0 18px', fontSize: '22px', color: '#102033' },
+  cardTitle: { margin: '0 0 8px', fontSize: '18px', color: '#102033' },
+  subtitle: { margin: '4px 0 0', color: '#5b6777', fontSize: '14px' },
+  mutedText: { color: '#5b6777', fontSize: '14px', lineHeight: 1.5, margin: '0 0 18px' },
+  form: { display: 'flex', flexDirection: 'column', gap: '14px' },
+  input: { padding: '11px 12px', border: '1px solid #cfd8e3', borderRadius: '6px', fontSize: '14px', backgroundColor: '#fff', color: '#102033' },
   preferencesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' },
-  fieldLabel: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '14px', fontWeight: '600', color: '#333' },
-  button: { padding: '10px 20px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '14px' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
-  tabs: { display: 'flex', gap: '10px', marginBottom: '20px' },
-  tabButton: { padding: '10px 20px', border: 'none', borderRadius: '5px', cursor: 'pointer', color: '#000' },
-  tabContent: { marginTop: '20px' },
-  calendarOptions: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' },
-  calendarCard: { padding: '20px', border: '1px solid #ddd', borderRadius: '5px', textAlign: 'center' },
-  slotsContainer: { marginTop: '20px' },
-  slotsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', marginTop: '15px' },
-  slotBox: { padding: '15px', border: '1px solid #ddd', borderRadius: '5px', textAlign: 'center', fontWeight: 'bold' },
-  slotButton: { padding: '15px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
-  message: { marginTop: '15px', padding: '10px', backgroundColor: '#d4edda', color: '#155724', borderRadius: '5px', textAlign: 'center' }
+  fieldLabel: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: '700', color: '#334155' },
+  button: { padding: '11px 18px', backgroundColor: '#0f766e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' },
+  secondaryButton: { marginTop: '12px', padding: '11px 18px', backgroundColor: '#f1f5f9', color: '#102033', border: '1px solid #cfd8e3', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', width: '100%' },
+  dangerButton: { padding: '10px 16px', backgroundColor: '#b42318', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '26px' },
+  tabs: { display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #dde5ee', paddingBottom: '8px' },
+  tabButton: { padding: '10px 14px', border: '1px solid transparent', borderRadius: '6px', cursor: 'pointer', color: '#334155', backgroundColor: '#fff', fontWeight: '700' },
+  activeTabButton: { color: '#0f766e', backgroundColor: '#ecfdf5', borderColor: '#99f6e4' },
+  tabContent: { marginTop: '8px' },
+  calendarOptions: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginTop: '8px' },
+  calendarCard: { padding: '20px', border: '1px solid #dde5ee', borderRadius: '8px', backgroundColor: '#fbfdff' },
+  slotsContainer: { marginTop: '22px' },
+  slotsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(118px, 1fr))', gap: '10px', marginTop: '14px' },
+  slotBox: { padding: '14px', border: '1px solid #cfd8e3', borderRadius: '6px', textAlign: 'center', fontWeight: '700', color: '#102033' },
+  slotButton: { padding: '14px', backgroundColor: '#0f766e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' },
+  message: { marginTop: '15px', padding: '11px', backgroundColor: '#ecfdf5', color: '#065f46', borderRadius: '6px', textAlign: 'center', border: '1px solid #99f6e4' }
 };
 
 // App Router

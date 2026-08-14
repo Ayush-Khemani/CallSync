@@ -1,12 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-jest.mock('react-router-dom', () => ({
-  BrowserRouter: ({ children }) => <div>{children}</div>,
-  Routes: ({ children }) => <div>{children[0]}</div>,
-  Route: ({ element }) => element,
-  useNavigate: () => jest.fn(),
-}), { virtual: true });
+jest.mock('react-router-dom', () => {
+  const React = require('react');
+  return {
+    BrowserRouter: ({ children }) => <div>{children}</div>,
+    Routes: ({ children }) => <div>{React.Children.toArray(children)[0]}</div>,
+    Route: ({ element }) => element,
+    useNavigate: () => jest.fn(),
+  };
+}, { virtual: true });
 
 jest.mock('axios', () => ({
   __esModule: true,
@@ -18,6 +21,6 @@ jest.mock('axios', () => ({
 
 test('renders CallSync login page', () => {
   render(<App />);
-  const linkElement = screen.getByText(/CallSync - Meeting Scheduler/i);
+  const linkElement = screen.getByRole('heading', { name: /CallSync/i });
   expect(linkElement).toBeInTheDocument();
 });
