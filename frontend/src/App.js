@@ -66,6 +66,33 @@ export function getMeetingActionState(meeting) {
   };
 }
 
+export function getPipelineEmptyState(stageId) {
+  const states = {
+    followUp: {
+      title: 'No follow-ups due',
+      detail: 'Pending links will move here when they need a nudge, so you can act before the conversation goes cold.',
+    },
+    pending: {
+      title: 'No links waiting',
+      detail: 'Freshly sent booking links appear here while the guest is still choosing a time.',
+    },
+    confirmed: {
+      title: 'No booked meetings',
+      detail: 'Confirmed meetings land here after a guest selects one of your approved slots.',
+    },
+    cancelled: {
+      title: 'No closed requests',
+      detail: 'Cancelled or closed-out invites collect here so your active pipeline stays clean.',
+    },
+    all: {
+      title: 'Your meeting pipeline is empty',
+      detail: 'Create a meeting request, choose the slots you want to offer, then share one booking link. CallSync will track what happens next.',
+    },
+  };
+
+  return states[stageId] || states.all;
+}
+
 const MEETING_TEMPLATES = {
   founder: {
     label: 'Founder sales',
@@ -315,7 +342,7 @@ function Dashboard() {
       </aside>
       <section className="main">
         <header className="main-head"><div><p className="eyebrow">Host workspace</p><h1>Manage your meeting pipeline from one desk.</h1></div><button className="btn primary" onClick={() => setTab('create')}>New request</button></header>
-        {tab === 'meetings' && <Meetings />}
+        {tab === 'meetings' && <Meetings onCreate={() => setTab('create')} />}
         {tab === 'create' && <CreateMeeting />}
         {tab === 'calendars' && <Calendars onGoogle={() => oauth('google')} onOutlook={() => oauth('outlook')} />}
       </section>
@@ -323,7 +350,7 @@ function Dashboard() {
   );
 }
 
-function Meetings() {
+function Meetings({ onCreate }) {
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -405,13 +432,20 @@ function Meetings() {
                   </div>
                 );
               })}
-              {!stage.meetings.length && <p>No meetings in this stage.</p>}
+              {!stage.meetings.length && <p>{getPipelineEmptyState(stage.id).detail}</p>}
             </article>
           ))}
         </div>
       )}
       {loading && <div className="empty">Loading meetings...</div>}
-      {!loading && !meetings.length && <div className="empty"><h3>No meetings yet</h3><p>Created meeting requests will appear here with status and share links.</p></div>}
+      {!loading && !meetings.length && (
+        <div className="empty empty-onboarding">
+          <p className="eyebrow">Nothing to manage yet</p>
+          <h3>{getPipelineEmptyState('all').title}</h3>
+          <p>{getPipelineEmptyState('all').detail}</p>
+          <button className="btn primary" type="button" onClick={onCreate}>Create first request</button>
+        </div>
+      )}
       {!!meetings.length && (
         <div className="grouped-meetings">
           {pipeline.map((stage) => (
@@ -434,7 +468,12 @@ function Meetings() {
                       </article>
                     );
                   })}
-                  {!stage.meetings.length && <div className="empty compact">No meetings in {stage.label.toLowerCase()}.</div>}
+                  {!stage.meetings.length && (
+                    <div className="empty compact stage-empty">
+                      <h4>{getPipelineEmptyState(stage.id).title}</h4>
+                      <p>{getPipelineEmptyState(stage.id).detail}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </section>

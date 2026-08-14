@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import App, { getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages } from './App';
+import App, { getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages, getPipelineEmptyState } from './App';
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -77,5 +77,15 @@ test('keeps host meeting actions explicit by status', () => {
     canCancel: false,
     openLabel: 'View closed link',
     cancelLabel: 'Cancelled',
+  });
+});
+
+test('explains empty pipeline stages', () => {
+  expect(getPipelineEmptyState('followUp')).toMatchObject({
+    title: 'No follow-ups due',
+  });
+  expect(getPipelineEmptyState('pending').detail).toContain('Freshly sent booking links');
+  expect(getPipelineEmptyState('all')).toMatchObject({
+    title: 'Your meeting pipeline is empty',
   });
 });
