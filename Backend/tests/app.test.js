@@ -4,6 +4,8 @@ const http = require('node:http');
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/callsync';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 process.env.NODE_ENV = 'test';
+process.env.FRONTEND_URLS = 'http://localhost:3000,https://call-sync-livid.vercel.app';
+process.env.FRONTEND_ORIGIN_REGEX = '^https://call-sync-[a-z0-9-]+\.vercel\.app$';
 
 const app = require('../src/app');
 const { generateAvailableSlots } = require('../src/services/availabilityService');
@@ -66,6 +68,19 @@ test('GET /api/health returns service status', async () => {
   assert.equal(response.headers['x-content-type-options'], 'nosniff');
   assert.equal(response.headers['x-frame-options'], 'DENY');
   assert.deepEqual(response.body, { status: 'ok', service: 'CallSync backend' });
+});
+
+test('CORS preflight allows configured Vercel deployment origins', async () => {
+  const response = await request('OPTIONS', '/api/auth/register', null, {
+    Origin: 'https://call-sync-d5py7xx4o-ayush-khemanis-projects.vercel.app',
+    'Access-Control-Request-Method': 'POST',
+  });
+
+  assert.equal(response.statusCode, 204);
+  assert.equal(
+    response.headers['access-control-allow-origin'],
+    'https://call-sync-d5py7xx4o-ayush-khemanis-projects.vercel.app'
+  );
 });
 
 test('protected meeting creation rejects missing auth token', async () => {
