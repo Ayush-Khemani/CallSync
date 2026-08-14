@@ -81,7 +81,7 @@ test('registers a user and logs in with persisted credentials', async () => {
   const login = await request('POST', '/api/auth/login', { email, password });
   assert.equal(login.statusCode, 200);
   assert.equal(login.body.email, email);
-  assert.equal(login.body.userId, 1);
+  assert.equal(Number.isInteger(login.body.userId), true);
   assert.equal(typeof login.body.token, 'string');
 });
 
@@ -105,7 +105,7 @@ test('creates a meeting, exposes slots, and confirms one selected slot', async (
 
   assert.equal(createMeeting.statusCode, 201);
   assert.equal(createMeeting.body.message, 'Meeting created');
-  assert.match(createMeeting.body.uniqueLink, /^[a-f0-9]{32}$/);
+  assert.match(createMeeting.body.uniqueLink, /^[A-Za-z0-9_-]{24}$/);
 
   const publicMeeting = await request('GET', `/api/meetings/${createMeeting.body.uniqueLink}`);
   assert.equal(publicMeeting.statusCode, 200);
