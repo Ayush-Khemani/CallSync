@@ -87,6 +87,45 @@ router.post('/meetings/create', authMiddleware, asyncHandler(async (req, res) =>
   });
 }));
 
+router.get('/meetings', authMiddleware, asyncHandler(async (req, res) => {
+  const meetingsResult = await pool.query(
+    `SELECT
+      m.id,
+      m.attendee_email,
+      m.attendee_name,
+      m.unique_link,
+      m.selected_slot,
+      m.status,
+      m.created_at,
+      COUNT(s.id)::int AS slot_count,
+      COUNT(*) FILTER (WHERE s.is_selected)::int AS selected_slot_count,
+      MIN(s.slot_time) AS first_slot,
+      MAX(s.slot_time) AS last_slot
+    FROM meetings m
+    LEFT JOIN slots s ON s.meeting_id = m.id
+    WHERE m.user_id = $1
+    GROUP BY m.id
+    ORDER BY m.created_at DESC`,
+    [req.userId]
+  );
+
+  res.json({
+    meetings: meetingsResult.rows.map((meeting) => ({
+      id: meeting.id,
+      attendeeEmail: meeting.attendee_email,
+      attendeeName: meeting.attendee_name,
+      uniqueLink: meeting.unique_link,
+      selectedSlot: meeting.selected_slot,
+      status: meeting.status,
+      createdAt: meeting.created_at,
+      slotCount: meeting.slot_count,
+      selectedSlotCount: meeting.selected_slot_count,
+      firstSlot: meeting.first_slot,
+      lastSlot: meeting.last_slot,
+    })),
+  });
+}));
+
 router.get('/meetings/:uniqueLink', asyncHandler(async (req, res) => {
   const meetingResult = await pool.query(
     'SELECT id, attendee_email, attendee_name, selected_slot, status FROM meetings WHERE unique_link = $1',
