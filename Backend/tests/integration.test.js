@@ -130,6 +130,40 @@ test('creates a meeting, exposes slots, and confirms one selected slot', async (
   assert.equal(confirmedMeeting.body.slots[0].is_selected, true);
 });
 
+test('host can list owned meetings with summary metadata', async () => {
+  const email = 'list-host@example.com';
+  const password = 'StrongPass123';
+
+  await request('POST', '/api/auth/register', { email, password });
+  const login = await request('POST', '/api/auth/login', { email, password });
+  const authHeaders = { Authorization: `Bearer ${login.body.token}` };
+
+  const unauthenticatedList = await request('GET', '/api/meetings');
+  assert.equal(unauthenticatedList.statusCode, 401);
+
+  const createMeeting = await request('POST', '/api/meetings/create', {
+    attendeeEmail: 'listed-guest@example.com',
+    attendeeName: 'Listed Guest',
+    slots: [
+      '2026-09-03T10:00:00.000Z',
+      '2026-09-03T11:00:00.000Z',
+    ],
+  }, authHeaders);
+
+  assert.equal(createMeeting.statusCode, 201);
+
+  const meetings = await request('GET', '/api/meetings', null, authHeaders);
+  assert.equal(meetings.statusCode, 200);
+  assert.equal(meetings.body.meetings.length, 1);
+  assert.equal(meetings.body.meetings[0].attendeeEmail, 'listed-guest@example.com');
+  assert.equal(meetings.body.meetings[0].attendeeName, 'Listed Guest');
+  assert.equal(meetings.body.meetings[0].status, 'pending');
+  assert.equal(meetings.body.meetings[0].slotCount, 2);
+  assert.match(meetings.body.meetings[0].uniqueLink, /^[A-Za-z0-9_-]{24}$/);
+  assert.equal(new Date(meetings.body.meetings[0].firstSlot).toISOString(), '2026-09-03T10:00:00.000Z');
+  assert.equal(new Date(meetings.body.meetings[0].lastSlot).toISOString(), '2026-09-03T11:00:00.000Z');
+});
+
 test('host can cancel a meeting and public link reflects cancelled status', async () => {
   const email = 'cancel-host@example.com';
   const password = 'StrongPass123';
