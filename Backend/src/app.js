@@ -8,8 +8,32 @@ const meetingRoutes = require('./routes/meetingRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const rateLimiter = require('./middleware/rateLimiter');
 const securityHeaders = require('./middleware/securityHeaders');
+const { runMigrations } = require('./db/migrate');
 
 const app = express();
+let migrationPromise;
+
+function ensureMigrations() {
+  if (!migrationPromise) {
+    migrationPromise = runMigrations().catch((error) => {
+      migrationPromise = null;
+      throw error;
+    });
+  }
+
+  return migrationPromise;
+}
+
+if (config.nodeEnv !== 'test' && process.env.AUTO_RUN_MIGRATIONS !== 'false') {
+  app.use(async (req, res, next) => {
+    try {
+      await ensureMigrations();
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+}
 
 app.use(cors({ origin: config.frontendUrl, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
