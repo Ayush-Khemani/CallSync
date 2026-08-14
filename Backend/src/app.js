@@ -24,6 +24,15 @@ function ensureMigrations() {
   return migrationPromise;
 }
 
+app.use(cors({ origin: config.frontendUrl, credentials: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(securityHeaders);
+
+app.use('/', healthRoutes);
+app.use('/api', healthRoutes);
+
+app.use('/api', rateLimiter);
+
 if (config.nodeEnv !== 'test' && process.env.AUTO_RUN_MIGRATIONS !== 'false') {
   app.use(async (req, res, next) => {
     try {
@@ -35,12 +44,6 @@ if (config.nodeEnv !== 'test' && process.env.AUTO_RUN_MIGRATIONS !== 'false') {
   });
 }
 
-app.use(cors({ origin: config.frontendUrl, credentials: true }));
-app.use(express.json({ limit: '1mb' }));
-app.use(securityHeaders);
-app.use('/api', rateLimiter);
-
-app.use('/api', healthRoutes);
 app.use('/api', authRoutes);
 app.use('/api', calendarRoutes);
 app.use('/api', meetingRoutes);
