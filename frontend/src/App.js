@@ -96,59 +96,63 @@ export function getPipelineEmptyState(stageId) {
 export const MEETING_TEMPLATES = {
   founder: {
     label: 'Founder sales',
+    summary: 'Qualify a customer or operator before a discovery call.',
     type: 'Customer discovery',
-    goal: 'Qualify a founder or operator, understand the pain, and agree on the next step.',
+    goal: 'Confirm the buyer pain, current workflow, urgency, and the next commercial step.',
     durationMinutes: 30,
     bufferMinutes: 15,
     slotIntervalMinutes: 30,
     workStartHour: 10,
     workEndHour: 17,
-    questions: ['What problem are you trying to solve?', 'What tools are you using today?', 'What would make this call successful?'],
-    message: 'Thanks for the reply. Pick any of the times here and I will come prepared with a focused agenda.',
+    questions: ['What problem are you trying to solve?', 'What tools are you using today?', 'What made this worth exploring now?', 'What would make this call successful?'],
+    message: 'Thanks for the reply. Pick a time that works and share a little context so we can use the call to decide whether there is a real fit.',
   },
   investor: {
     label: 'Investor intro',
+    summary: 'Prepare a focused fundraising, advisor, or warm intro conversation.',
     type: 'Investor meeting',
-    goal: 'Prepare a concise fundraising or advisor conversation with context before the call.',
+    goal: 'Set up a concise investor conversation with fund context, stage fit, and the highest-value topic known before the call.',
     durationMinutes: 30,
     bufferMinutes: 15,
     slotIntervalMinutes: 30,
     workStartHour: 13,
     workEndHour: 18,
-    questions: ['What fund or company are you with?', 'What stage do you usually invest in?', 'Any topic you want me to cover first?'],
-    message: 'Great to connect. Here are a few focused windows for an intro call.',
+    questions: ['What fund or company are you with?', 'What stage do you usually invest in?', 'What made the company interesting to you?', 'Any topic you want me to cover first?'],
+    message: 'Great to connect. Choose one of these focused windows and I will come prepared with the right fundraising context instead of a generic intro.',
   },
   recruiting: {
     label: 'Recruiting screen',
+    summary: 'Screen a candidate with role fit, timing, and discussion points up front.',
     type: 'Candidate screen',
-    goal: 'Run an efficient candidate conversation with role fit and availability known up front.',
+    goal: 'Run a structured candidate screen with role interest, availability, compensation expectations, and a discussion anchor ready.',
     durationMinutes: 45,
     bufferMinutes: 15,
     slotIntervalMinutes: 30,
     workStartHour: 9,
     workEndHour: 16,
-    questions: ['Which role are you most interested in?', 'What is your earliest start date?', 'Share one project you would like to discuss.'],
-    message: 'Choose a time that works for you. I will review your background before we speak.',
+    questions: ['Which role are you most interested in?', 'What is your earliest start date?', 'What compensation range should we be aware of?', 'Share one project you would like to discuss.'],
+    message: 'Choose a time that works for you and add the context below. I will review it before we speak so the screen starts with substance.',
   },
   client: {
     label: 'Client onboarding',
+    summary: 'Kick off a client project with scope, stakeholders, and urgency aligned.',
     type: 'Client kickoff',
-    goal: 'Align scope, urgency, decision process, and immediate next steps.',
+    goal: 'Align the desired outcome, stakeholders, timeline, constraints, and immediate next steps before the kickoff.',
     durationMinutes: 60,
     bufferMinutes: 15,
     slotIntervalMinutes: 30,
     workStartHour: 10,
     workEndHour: 16,
-    questions: ['What outcome do you want from this project?', 'Who needs to be involved?', 'Is there a target deadline?'],
-    message: 'Use this link to pick a kickoff time. I will use your answers to structure the session.',
+    questions: ['What outcome do you want from this project?', 'Who needs to be involved?', 'What constraints should we know before the kickoff?', 'Is there a target deadline?'],
+    message: 'Use this link to pick a kickoff time. Your answers will shape the agenda so we can leave with ownership, scope, and next steps clear.',
   },
 };
 
 export function inferMeetingTemplate(text) {
   const prompt = text.toLowerCase();
-  if (prompt.includes('investor') || prompt.includes('fundraising') || prompt.includes('vc')) return 'investor';
-  if (prompt.includes('candidate') || prompt.includes('interview') || prompt.includes('recruit')) return 'recruiting';
-  if (prompt.includes('client') || prompt.includes('kickoff') || prompt.includes('onboarding')) return 'client';
+  if (prompt.includes('investor') || prompt.includes('fundraising') || prompt.includes('fundraise') || prompt.includes('vc') || prompt.includes('fund ')) return 'investor';
+  if (prompt.includes('candidate') || prompt.includes('interview') || prompt.includes('recruit') || prompt.includes('hiring') || prompt.includes('screen')) return 'recruiting';
+  if (prompt.includes('client') || prompt.includes('kickoff') || prompt.includes('onboarding') || prompt.includes('scope') || prompt.includes('stakeholder')) return 'client';
   return 'founder';
 }
 
@@ -245,6 +249,7 @@ export function buildMeetingDraftFromPrompt(text, options = {}) {
       `${durationMinutes} minute call`,
       `${template.bufferMinutes} minute buffer`,
       window.label,
+      `${template.questions.length} qualification questions`,
       selectedDate ? `Date set to ${selectedDate}` : 'Host chooses date',
     ],
   };
@@ -656,8 +661,14 @@ function CreateMeeting() {
           <p className="eyebrow">Meeting assistant</p>
           <h3>Describe the call once. CallSync shapes the request.</h3>
           <textarea value={assistantPrompt} onChange={(e) => setAssistantPrompt(e.target.value)} placeholder="Example: Create a 30 minute investor intro next week in the afternoon and ask what fund they are from." />
-          <div className="template-row">
-            {Object.entries(MEETING_TEMPLATES).map(([key, template]) => <button type="button" key={key} onClick={() => applyTemplate(key)}>{template.label}</button>)}
+          <div className="template-row" aria-label="Production meeting templates">
+            {Object.entries(MEETING_TEMPLATES).map(([key, template]) => (
+              <button type="button" key={key} onClick={() => applyTemplate(key)}>
+                <span>{template.label}</span>
+                <small>{template.summary}</small>
+                <em>{template.durationMinutes} min / {template.bufferMinutes} min buffer</em>
+              </button>
+            ))}
           </div>
           <button type="button" className="btn primary" onClick={runAssistant}>Generate meeting brief</button>
         </div>

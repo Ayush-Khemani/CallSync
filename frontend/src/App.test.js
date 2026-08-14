@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import App, { buildMeetingDraftFromPrompt, getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages, getPipelineEmptyState } from './App';
+import App, { MEETING_TEMPLATES, buildMeetingDraftFromPrompt, getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages, getPipelineEmptyState, inferMeetingTemplate } from './App';
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -109,4 +109,26 @@ test('builds a meeting draft from natural language', () => {
   expect(draft.brief.type).toBe('Investor meeting');
   expect(draft.brief.questions).toContain('Who is involved in the decision?');
   expect(draft.insights).toContain('Afternoon window');
+});
+
+test('keeps production meeting templates distinct and actionable', () => {
+  expect(Object.keys(MEETING_TEMPLATES)).toEqual(['founder', 'investor', 'recruiting', 'client']);
+
+  Object.values(MEETING_TEMPLATES).forEach((template) => {
+    expect(template.summary.length).toBeGreaterThan(35);
+    expect(template.goal.length).toBeGreaterThan(70);
+    expect(template.questions).toHaveLength(4);
+    expect(template.message.length).toBeGreaterThan(90);
+  });
+
+  expect(new Set(Object.values(MEETING_TEMPLATES).map((template) => template.type)).size).toBe(4);
+  expect(MEETING_TEMPLATES.recruiting.questions).toContain('What compensation range should we be aware of?');
+  expect(MEETING_TEMPLATES.client.questions).toContain('What constraints should we know before the kickoff?');
+});
+
+test('routes common production prompts to the right template', () => {
+  expect(inferMeetingTemplate('warm VC fund intro')).toBe('investor');
+  expect(inferMeetingTemplate('hiring screen with senior backend candidate')).toBe('recruiting');
+  expect(inferMeetingTemplate('client scope and stakeholder kickoff')).toBe('client');
+  expect(inferMeetingTemplate('founder discovery for a sales lead')).toBe('founder');
 });
