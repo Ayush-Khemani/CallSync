@@ -28,6 +28,15 @@ function needsFollowUp(meeting) {
   return meeting.status === 'pending' && daysSince(meeting.createdAt) >= 2;
 }
 
+export function getMeetingPipelineStages(meetings) {
+  return [
+    { id: 'followUp', label: 'Needs follow-up', meetings: meetings.filter(needsFollowUp) },
+    { id: 'pending', label: 'Link sent', meetings: meetings.filter((meeting) => meeting.status === 'pending' && !needsFollowUp(meeting)) },
+    { id: 'confirmed', label: 'Booked', meetings: meetings.filter((meeting) => meeting.status === 'confirmed') },
+    { id: 'cancelled', label: 'Closed', meetings: meetings.filter((meeting) => meeting.status === 'cancelled') },
+  ];
+}
+
 const MEETING_TEMPLATES = {
   founder: {
     label: 'Founder sales',
@@ -289,18 +298,14 @@ function Meetings() {
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [expandedStage, setExpandedStage] = useState('followUp');
   const stats = useMemo(() => ({
     total: meetings.length,
     confirmed: meetings.filter((m) => m.status === 'confirmed').length,
     pending: meetings.filter((m) => m.status === 'pending').length,
     followUp: meetings.filter(needsFollowUp).length,
   }), [meetings]);
-  const pipeline = useMemo(() => ([
-    ['followUp', 'Needs follow-up', meetings.filter(needsFollowUp)],
-    ['pending', 'Link sent', meetings.filter((m) => m.status === 'pending' && !needsFollowUp(m))],
-    ['confirmed', 'Booked', meetings.filter((m) => m.status === 'confirmed')],
-    ['cancelled', 'Closed', meetings.filter((m) => m.status === 'cancelled')],
-  ]), [meetings]);
+  const pipeline = useMemo(() => getMeetingPipelineStages(meetings), [meetings]);
 
   async function load() {
     setLoading(true);
@@ -342,31 +347,48 @@ function Meetings() {
       <div className="stats">{Object.entries(stats).map(([label, value]) => <article key={label}><span>{label.replace(/([A-Z])/g, ' $1')}</span><b>{value}</b></article>)}</div>
       {!!meetings.length && (
         <div className="pipeline-board" aria-label="Meeting pipeline stages">
-          {pipeline.map(([stage, label, items]) => (
-            <article className={`pipeline-column ${stage}`} key={stage}>
-              <header><span>{label}</span><b>{items.length}</b></header>
-              {items.slice(0, 3).map((meeting) => (
+          {pipeline.map((stage) => (
+            <article className={`pipeline-column ${stage.id}`} key={stage.id}>
+              <header><span>{stage.label}</span><b>{stage.meetings.length}</b></header>
+              {stage.meetings.slice(0, 3).map((meeting) => (
                 <div className="pipeline-card" key={meeting.id}>
                   <b>{meeting.attendeeName}</b>
                   <small>{meeting.attendeeEmail}</small>
                   <span>{meeting.status === 'confirmed' ? formatDateTime(meeting.selectedSlot) : `${daysSince(meeting.createdAt)} days since created`}</span>
                 </div>
               ))}
-              {!items.length && <p>No meetings in this stage.</p>}
+              {!stage.meetings.length && <p>No meetings in this stage.</p>}
             </article>
           ))}
         </div>
       )}
       {loading && <div className="empty">Loading meetings...</div>}
       {!loading && !meetings.length && <div className="empty"><h3>No meetings yet</h3><p>Created meeting requests will appear here with status and share links.</p></div>}
-      {!!meetings.length && <div className="meeting-list">{meetings.map((meeting) => (
-        <article className="meeting" key={meeting.id}>
-          <div><header><h3>{meeting.attendeeName}</h3><span className={`badge ${needsFollowUp(meeting) ? 'followup' : meeting.status}`}>{needsFollowUp(meeting) ? 'needs follow-up' : meeting.status}</span></header><p>{meeting.attendeeEmail}</p>
-            <div className="meta"><span>Selected <b>{formatDateTime(meeting.selectedSlot)}</b></span><span>Window <b>{formatDateTime(meeting.firstSlot)} - {formatDateTime(meeting.lastSlot)}</b></span><span>Slots <b>{meeting.slotCount}</b></span></div>
-          </div>
-          <aside><a className="btn primary small" href={url(meeting.uniqueLink)} target="_blank" rel="noreferrer">Open</a><button className="btn light small" onClick={() => copy(meeting.uniqueLink)}>Copy</button><button className="btn danger small" disabled={meeting.status === 'cancelled'} onClick={() => cancel(meeting.uniqueLink)}>Cancel</button></aside>
-        </article>
-      ))}</div>}
+      {!!meetings.length && (
+        <div className="grouped-meetings">
+          {pipeline.map((stage) => (
+            <section className="stage-group" key={stage.id}>
+              <button className="stage-toggle" type="button" onClick={() => setExpandedStage(expandedStage === stage.id ? '' : stage.id)}>
+                <span>{stage.label}</span>
+                <b>{stage.meetings.length}</b>
+              </button>
+              {expandedStage === stage.id && (
+                <div className="meeting-list">
+                  {stage.meetings.map((meeting) => (
+                    <article className="meeting" key={meeting.id}>
+                      <div><header><h3>{meeting.attendeeName}</h3><span className={`badge ${needsFollowUp(meeting) ? 'followup' : meeting.status}`}>{needsFollowUp(meeting) ? 'needs follow-up' : meeting.status}</span></header><p>{meeting.attendeeEmail}</p>
+                        <div className="meta"><span>Selected <b>{formatDateTime(meeting.selectedSlot)}</b></span><span>Window <b>{formatDateTime(meeting.firstSlot)} - {formatDateTime(meeting.lastSlot)}</b></span><span>Slots <b>{meeting.slotCount}</b></span></div>
+                      </div>
+                      <aside><a className="btn primary small" href={url(meeting.uniqueLink)} target="_blank" rel="noreferrer">Open</a><button className="btn light small" onClick={() => copy(meeting.uniqueLink)}>Copy</button><button className="btn danger small" disabled={meeting.status === 'cancelled'} onClick={() => cancel(meeting.uniqueLink)}>Cancel</button></aside>
+                    </article>
+                  ))}
+                  {!stage.meetings.length && <div className="empty compact">No meetings in {stage.label.toLowerCase()}.</div>}
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
       {message && <p className="message">{message}</p>}
     </section>
   );
