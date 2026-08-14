@@ -24,8 +24,27 @@ function daysSince(value) {
   return Math.floor((Date.now() - new Date(value).getTime()) / 86400000);
 }
 
+export function getFollowUpRisk(meeting) {
+  if (meeting.status !== 'pending') {
+    return { level: 'none', label: 'No follow-up needed', detail: 'This meeting is no longer waiting on a guest.' };
+  }
+
+  const age = daysSince(meeting.createdAt);
+  if (age >= 5) {
+    return { level: 'high', label: 'High follow-up risk', detail: `${age} days waiting. Send a personal nudge today.` };
+  }
+  if (age >= 2) {
+    return { level: 'medium', label: 'Follow-up due', detail: `${age} days waiting. Keep this invite from going cold.` };
+  }
+  return {
+    level: 'low',
+    label: 'Healthy invite',
+    detail: age === 0 ? 'Sent today. Give the guest room to choose.' : `${age} day waiting. No action needed yet.`,
+  };
+}
+
 function needsFollowUp(meeting) {
-  return meeting.status === 'pending' && daysSince(meeting.createdAt) >= 2;
+  return ['medium', 'high'].includes(getFollowUpRisk(meeting).level);
 }
 
 export function getMeetingPipelineStages(meetings) {
@@ -350,13 +369,17 @@ function Meetings() {
           {pipeline.map((stage) => (
             <article className={`pipeline-column ${stage.id}`} key={stage.id}>
               <header><span>{stage.label}</span><b>{stage.meetings.length}</b></header>
-              {stage.meetings.slice(0, 3).map((meeting) => (
-                <div className="pipeline-card" key={meeting.id}>
-                  <b>{meeting.attendeeName}</b>
-                  <small>{meeting.attendeeEmail}</small>
-                  <span>{meeting.status === 'confirmed' ? formatDateTime(meeting.selectedSlot) : `${daysSince(meeting.createdAt)} days since created`}</span>
-                </div>
-              ))}
+              {stage.meetings.slice(0, 3).map((meeting) => {
+                const risk = getFollowUpRisk(meeting);
+                return (
+                  <div className="pipeline-card" key={meeting.id}>
+                    <b>{meeting.attendeeName}</b>
+                    <small>{meeting.attendeeEmail}</small>
+                    <span>{meeting.status === 'confirmed' ? formatDateTime(meeting.selectedSlot) : `${daysSince(meeting.createdAt)} days since created`}</span>
+                    {risk.level !== 'none' && <em className={`risk-chip ${risk.level}`}>{risk.label}</em>}
+                  </div>
+                );
+              })}
               {!stage.meetings.length && <p>No meetings in this stage.</p>}
             </article>
           ))}
@@ -374,14 +397,18 @@ function Meetings() {
               </button>
               {expandedStage === stage.id && (
                 <div className="meeting-list">
-                  {stage.meetings.map((meeting) => (
-                    <article className="meeting" key={meeting.id}>
-                      <div><header><h3>{meeting.attendeeName}</h3><span className={`badge ${needsFollowUp(meeting) ? 'followup' : meeting.status}`}>{needsFollowUp(meeting) ? 'needs follow-up' : meeting.status}</span></header><p>{meeting.attendeeEmail}</p>
-                        <div className="meta"><span>Selected <b>{formatDateTime(meeting.selectedSlot)}</b></span><span>Window <b>{formatDateTime(meeting.firstSlot)} - {formatDateTime(meeting.lastSlot)}</b></span><span>Slots <b>{meeting.slotCount}</b></span></div>
-                      </div>
-                      <aside><a className="btn primary small" href={url(meeting.uniqueLink)} target="_blank" rel="noreferrer">Open</a><button className="btn light small" onClick={() => copy(meeting.uniqueLink)}>Copy</button><button className="btn danger small" disabled={meeting.status === 'cancelled'} onClick={() => cancel(meeting.uniqueLink)}>Cancel</button></aside>
-                    </article>
-                  ))}
+                  {stage.meetings.map((meeting) => {
+                    const risk = getFollowUpRisk(meeting);
+                    return (
+                      <article className="meeting" key={meeting.id}>
+                        <div><header><h3>{meeting.attendeeName}</h3><span className={`badge ${needsFollowUp(meeting) ? 'followup' : meeting.status}`}>{needsFollowUp(meeting) ? 'needs follow-up' : meeting.status}</span></header><p>{meeting.attendeeEmail}</p>
+                          <div className="meta"><span>Selected <b>{formatDateTime(meeting.selectedSlot)}</b></span><span>Window <b>{formatDateTime(meeting.firstSlot)} - {formatDateTime(meeting.lastSlot)}</b></span><span>Slots <b>{meeting.slotCount}</b></span></div>
+                          {risk.level !== 'none' && <div className={`followup-risk ${risk.level}`}><b>{risk.label}</b><span>{risk.detail}</span></div>}
+                        </div>
+                        <aside><a className="btn primary small" href={url(meeting.uniqueLink)} target="_blank" rel="noreferrer">Open</a><button className="btn light small" onClick={() => copy(meeting.uniqueLink)}>Copy</button><button className="btn danger small" disabled={meeting.status === 'cancelled'} onClick={() => cancel(meeting.uniqueLink)}>Cancel</button></aside>
+                      </article>
+                    );
+                  })}
                   {!stage.meetings.length && <div className="empty compact">No meetings in {stage.label.toLowerCase()}.</div>}
                 </div>
               )}

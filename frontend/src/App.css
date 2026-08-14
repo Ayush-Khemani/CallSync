@@ -137,6 +137,10 @@ a { color: inherit; text-decoration: none; }
 .pipeline-card b, .pipeline-card small, .pipeline-card span { overflow-wrap: anywhere; }
 .pipeline-card small { color: var(--muted); }
 .pipeline-card span { color: #475467; font-size: 12px; font-weight: 800; }
+.risk-chip { border-radius: 999px; font-size: 11px; font-style: normal; font-weight: 900; margin-top: 6px; padding: 5px 8px; width: max-content; }
+.risk-chip.low { background: #eef9f4; color: #087443; }
+.risk-chip.medium { background: #fff7d6; color: #8a5a00; }
+.risk-chip.high { background: #fff1e8; color: #b54708; }
 .grouped-meetings { display: grid; gap: 12px; }
 .stage-group { background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .stage-toggle { align-items: center; background: #f8fafc; border: 0; color: var(--ink); cursor: pointer; display: flex; justify-content: space-between; min-height: 52px; padding: 0 16px; width: 100%; }
@@ -149,6 +153,12 @@ a { color: inherit; text-decoration: none; }
 .meeting aside { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .meta { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(120px, 1fr)); margin-top: 14px; }
 .meta b { color: var(--ink); display: block; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; text-transform: none; }
+.followup-risk { border: 1px solid; border-radius: 8px; display: grid; gap: 3px; margin-top: 14px; padding: 12px; }
+.followup-risk b { font-size: 13px; }
+.followup-risk span { color: #344054; font-size: 13px; line-height: 1.45; }
+.followup-risk.low { background: #f1fbf6; border-color: #b7ebd1; }
+.followup-risk.medium { background: #fff9e6; border-color: #f4d675; }
+.followup-risk.high { background: #fff4ed; border-color: #ffb088; }
 .badge { background: #fff7d6; border-radius: 999px; color: #8a5a00; font-size: 12px; font-weight: 900; padding: 5px 10px; text-transform: capitalize; }
 .badge.confirmed, .notice.confirmed { background: #dcfce7; color: #166534; }
 .badge.cancelled, .notice.cancelled { background: #fee2e2; color: #991b1b; }

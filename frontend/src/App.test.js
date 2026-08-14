@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import App, { getMeetingPipelineStages } from './App';
+import App, { getFollowUpRisk, getMeetingPipelineStages } from './App';
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -43,4 +43,24 @@ test('groups meetings into pipeline stages', () => {
     ['Booked', [3]],
     ['Closed', [4]],
   ]);
+});
+
+test('scores pending invite follow-up risk', () => {
+  const now = Date.now();
+
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now).toISOString() })).toMatchObject({
+    level: 'low',
+    label: 'Healthy invite',
+  });
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 2 * 86400000).toISOString() })).toMatchObject({
+    level: 'medium',
+    label: 'Follow-up due',
+  });
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 5 * 86400000).toISOString() })).toMatchObject({
+    level: 'high',
+    label: 'High follow-up risk',
+  });
+  expect(getFollowUpRisk({ status: 'confirmed', createdAt: new Date(now - 5 * 86400000).toISOString() })).toMatchObject({
+    level: 'none',
+  });
 });
