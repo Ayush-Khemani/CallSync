@@ -29,6 +29,8 @@ module.exports = {
   nodeEnv,
   port: Number(optionalEnv('PORT', '5000')),
   frontendUrl: optionalEnv('FRONTEND_URL', 'http://localhost:3000').replace(/\/$/, ''),
+  rateLimitWindowMs: Number(optionalEnv('RATE_LIMIT_WINDOW_MS', '900000')),
+  rateLimitMax: Number(optionalEnv('RATE_LIMIT_MAX', '100')),
   databaseUrl: requireEnv('DATABASE_URL'),
   jwtSecret,
   tokenEncryptionKey: optionalEnv('TOKEN_ENCRYPTION_KEY', ''),

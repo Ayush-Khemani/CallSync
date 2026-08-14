@@ -34,6 +34,7 @@ function request(method, path, body, headers = {}) {
           server.close(() => {
             resolve({
               statusCode: res.statusCode,
+              headers: res.headers,
               body: raw ? JSON.parse(raw) : null,
             });
           });
@@ -62,6 +63,8 @@ test('GET /api/health returns service status', async () => {
   const response = await request('GET', '/api/health');
 
   assert.equal(response.statusCode, 200);
+  assert.equal(response.headers['x-content-type-options'], 'nosniff');
+  assert.equal(response.headers['x-frame-options'], 'DENY');
   assert.deepEqual(response.body, { status: 'ok', service: 'CallSync backend' });
 });
 
