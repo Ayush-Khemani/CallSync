@@ -4,6 +4,13 @@ function optionalEnv(name, fallback = '') {
   return process.env[name] || fallback;
 }
 
+function listEnv(name, fallback = '') {
+  return optionalEnv(name, fallback)
+    .split(',')
+    .map((value) => value.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+}
+
 const nodeEnv = optionalEnv('NODE_ENV', 'development');
 
 const jwtSecret = optionalEnv('JWT_SECRET', 'dev-only-change-me');
@@ -27,6 +34,8 @@ module.exports = {
   nodeEnv,
   port: Number(optionalEnv('PORT', '5000')),
   frontendUrl: optionalEnv('FRONTEND_URL', 'http://localhost:3000').replace(/\/$/, ''),
+  frontendUrls: listEnv('FRONTEND_URLS', optionalEnv('FRONTEND_URL', 'http://localhost:3000')),
+  frontendOriginRegex: optionalEnv('FRONTEND_ORIGIN_REGEX', ''),
   rateLimitWindowMs: Number(optionalEnv('RATE_LIMIT_WINDOW_MS', '900000')),
   rateLimitMax: Number(optionalEnv('RATE_LIMIT_MAX', '100')),
   databaseUrl: optionalEnv('DATABASE_URL', ''),
