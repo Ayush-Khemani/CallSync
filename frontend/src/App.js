@@ -19,6 +19,81 @@ function formatDateTime(value) {
   return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function daysSince(value) {
+  if (!value) return 0;
+  return Math.floor((Date.now() - new Date(value).getTime()) / 86400000);
+}
+
+function needsFollowUp(meeting) {
+  return meeting.status === 'pending' && daysSince(meeting.createdAt) >= 2;
+}
+
+const MEETING_TEMPLATES = {
+  founder: {
+    label: 'Founder sales',
+    type: 'Customer discovery',
+    goal: 'Qualify a founder or operator, understand the pain, and agree on the next step.',
+    durationMinutes: 30,
+    bufferMinutes: 15,
+    slotIntervalMinutes: 30,
+    workStartHour: 10,
+    workEndHour: 17,
+    questions: ['What problem are you trying to solve?', 'What tools are you using today?', 'What would make this call successful?'],
+    message: 'Thanks for the reply. Pick any of the times here and I will come prepared with a focused agenda.',
+  },
+  investor: {
+    label: 'Investor intro',
+    type: 'Investor meeting',
+    goal: 'Prepare a concise fundraising or advisor conversation with context before the call.',
+    durationMinutes: 30,
+    bufferMinutes: 15,
+    slotIntervalMinutes: 30,
+    workStartHour: 13,
+    workEndHour: 18,
+    questions: ['What fund or company are you with?', 'What stage do you usually invest in?', 'Any topic you want me to cover first?'],
+    message: 'Great to connect. Here are a few focused windows for an intro call.',
+  },
+  recruiting: {
+    label: 'Recruiting screen',
+    type: 'Candidate screen',
+    goal: 'Run an efficient candidate conversation with role fit and availability known up front.',
+    durationMinutes: 45,
+    bufferMinutes: 15,
+    slotIntervalMinutes: 30,
+    workStartHour: 9,
+    workEndHour: 16,
+    questions: ['Which role are you most interested in?', 'What is your earliest start date?', 'Share one project you would like to discuss.'],
+    message: 'Choose a time that works for you. I will review your background before we speak.',
+  },
+  client: {
+    label: 'Client onboarding',
+    type: 'Client kickoff',
+    goal: 'Align scope, urgency, decision process, and immediate next steps.',
+    durationMinutes: 60,
+    bufferMinutes: 15,
+    slotIntervalMinutes: 30,
+    workStartHour: 10,
+    workEndHour: 16,
+    questions: ['What outcome do you want from this project?', 'Who needs to be involved?', 'Is there a target deadline?'],
+    message: 'Use this link to pick a kickoff time. I will use your answers to structure the session.',
+  },
+};
+
+function inferMeetingTemplate(text) {
+  const prompt = text.toLowerCase();
+  if (prompt.includes('investor') || prompt.includes('fundraising') || prompt.includes('vc')) return 'investor';
+  if (prompt.includes('candidate') || prompt.includes('interview') || prompt.includes('recruit')) return 'recruiting';
+  if (prompt.includes('client') || prompt.includes('kickoff') || prompt.includes('onboarding')) return 'client';
+  return 'founder';
+}
+
+function inferDuration(text, fallback) {
+  const match = text.match(/(\d{2,3})\s*(minute|min|mins)/i);
+  if (!match) return fallback;
+  const value = Number(match[1]);
+  return [15, 30, 45, 60].includes(value) ? value : fallback;
+}
+
 function LandingPage() {
   const hasToken = Boolean(localStorage.getItem('token'));
   return (
@@ -218,7 +293,14 @@ function Meetings() {
     total: meetings.length,
     confirmed: meetings.filter((m) => m.status === 'confirmed').length,
     pending: meetings.filter((m) => m.status === 'pending').length,
+    followUp: meetings.filter(needsFollowUp).length,
   }), [meetings]);
+  const pipeline = useMemo(() => ([
+    ['followUp', 'Needs follow-up', meetings.filter(needsFollowUp)],
+    ['pending', 'Link sent', meetings.filter((m) => m.status === 'pending' && !needsFollowUp(m))],
+    ['confirmed', 'Booked', meetings.filter((m) => m.status === 'confirmed')],
+    ['cancelled', 'Closed', meetings.filter((m) => m.status === 'cancelled')],
+  ]), [meetings]);
 
   async function load() {
     setLoading(true);
@@ -256,13 +338,30 @@ function Meetings() {
 
   return (
     <section className="panel">
-      <div className="panel-head"><div><h2>Meetings</h2><p>Track requests, confirmations, links, and cancelled meetings.</p></div><button className="btn light" onClick={load}>Refresh</button></div>
-      <div className="stats">{Object.entries(stats).map(([label, value]) => <article key={label}><span>{label}</span><b>{value}</b></article>)}</div>
+      <div className="panel-head"><div><h2>Meeting pipeline</h2><p>Track every invite from link sent to booked, follow-up, or closed.</p></div><button className="btn light" onClick={load}>Refresh</button></div>
+      <div className="stats">{Object.entries(stats).map(([label, value]) => <article key={label}><span>{label.replace(/([A-Z])/g, ' $1')}</span><b>{value}</b></article>)}</div>
+      {!!meetings.length && (
+        <div className="pipeline-board" aria-label="Meeting pipeline stages">
+          {pipeline.map(([stage, label, items]) => (
+            <article className={`pipeline-column ${stage}`} key={stage}>
+              <header><span>{label}</span><b>{items.length}</b></header>
+              {items.slice(0, 3).map((meeting) => (
+                <div className="pipeline-card" key={meeting.id}>
+                  <b>{meeting.attendeeName}</b>
+                  <small>{meeting.attendeeEmail}</small>
+                  <span>{meeting.status === 'confirmed' ? formatDateTime(meeting.selectedSlot) : `${daysSince(meeting.createdAt)} days since created`}</span>
+                </div>
+              ))}
+              {!items.length && <p>No meetings in this stage.</p>}
+            </article>
+          ))}
+        </div>
+      )}
       {loading && <div className="empty">Loading meetings...</div>}
       {!loading && !meetings.length && <div className="empty"><h3>No meetings yet</h3><p>Created meeting requests will appear here with status and share links.</p></div>}
       {!!meetings.length && <div className="meeting-list">{meetings.map((meeting) => (
         <article className="meeting" key={meeting.id}>
-          <div><header><h3>{meeting.attendeeName}</h3><span className={`badge ${meeting.status}`}>{meeting.status}</span></header><p>{meeting.attendeeEmail}</p>
+          <div><header><h3>{meeting.attendeeName}</h3><span className={`badge ${needsFollowUp(meeting) ? 'followup' : meeting.status}`}>{needsFollowUp(meeting) ? 'needs follow-up' : meeting.status}</span></header><p>{meeting.attendeeEmail}</p>
             <div className="meta"><span>Selected <b>{formatDateTime(meeting.selectedSlot)}</b></span><span>Window <b>{formatDateTime(meeting.firstSlot)} - {formatDateTime(meeting.lastSlot)}</b></span><span>Slots <b>{meeting.slotCount}</b></span></div>
           </div>
           <aside><a className="btn primary small" href={url(meeting.uniqueLink)} target="_blank" rel="noreferrer">Open</a><button className="btn light small" onClick={() => copy(meeting.uniqueLink)}>Copy</button><button className="btn danger small" disabled={meeting.status === 'cancelled'} onClick={() => cancel(meeting.uniqueLink)}>Cancel</button></aside>
@@ -287,10 +386,36 @@ function Calendars({ onGoogle, onOutlook }) {
 
 function CreateMeeting() {
   const [form, setForm] = useState({ attendeeEmail: '', attendeeName: '', selectedDate: '', durationMinutes: 60, bufferMinutes: 0, slotIntervalMinutes: 30, workStartHour: 9, workEndHour: 17, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' });
+  const [brief, setBrief] = useState({ type: 'General meeting', goal: 'Create a focused meeting request and keep the invite visible until it is booked.', questions: ['What should we cover?', 'Is there anything I should review first?'], message: 'Here are a few times that work on my side. Pick the one that is best for you.' });
+  const [assistantPrompt, setAssistantPrompt] = useState('');
   const [slots, setSlots] = useState([]);
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState('');
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  function applyTemplate(key, prompt = '') {
+    const template = MEETING_TEMPLATES[key];
+    setForm((current) => ({
+      ...current,
+      durationMinutes: inferDuration(prompt, template.durationMinutes),
+      bufferMinutes: template.bufferMinutes,
+      slotIntervalMinutes: template.slotIntervalMinutes,
+      workStartHour: template.workStartHour,
+      workEndHour: template.workEndHour,
+    }));
+    setBrief({
+      type: template.type,
+      goal: template.goal,
+      questions: template.questions,
+      message: template.message,
+    });
+    setMessage('Meeting brief applied. Add the guest and date, then generate slots.');
+  }
+
+  function runAssistant() {
+    const key = inferMeetingTemplate(assistantPrompt);
+    applyTemplate(key, assistantPrompt);
+  }
 
   async function fetchSlots() {
     setMessage('');
@@ -322,7 +447,24 @@ function CreateMeeting() {
 
   return (
     <section className="panel">
-      <div className="panel-head"><div><h2>Create Meeting Request</h2><p>Shape the invite before it leaves your workspace.</p></div></div>
+      <div className="panel-head"><div><h2>Create meeting request</h2><p>Start with intent, then turn it into a booking link with only the right slots.</p></div></div>
+      <div className="assistant-builder">
+        <div>
+          <p className="eyebrow">Meeting assistant</p>
+          <h3>Describe the call once. CallSync shapes the request.</h3>
+          <textarea value={assistantPrompt} onChange={(e) => setAssistantPrompt(e.target.value)} placeholder="Example: Create a 30 minute investor intro next week in the afternoon and ask what fund they are from." />
+          <div className="template-row">
+            {Object.entries(MEETING_TEMPLATES).map(([key, template]) => <button type="button" key={key} onClick={() => applyTemplate(key)}>{template.label}</button>)}
+          </div>
+          <button type="button" className="btn primary" onClick={runAssistant}>Generate meeting brief</button>
+        </div>
+        <aside>
+          <span>{brief.type}</span>
+          <h4>{brief.goal}</h4>
+          <ul>{brief.questions.map((question) => <li key={question}>{question}</li>)}</ul>
+          <p>{brief.message}</p>
+        </aside>
+      </div>
       <div className="create-grid">
         <form className="form">
           <label>Attendee email<input type="email" placeholder="guest@company.com" value={form.attendeeEmail} onChange={(e) => set('attendeeEmail', e.target.value)} /></label>
