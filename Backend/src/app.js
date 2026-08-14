@@ -13,6 +13,22 @@ const { runMigrations } = require('./db/migrate');
 const app = express();
 let migrationPromise;
 
+function isAllowedCorsOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  if (config.frontendUrls.includes(origin.replace(/\/$/, ''))) {
+    return true;
+  }
+
+  if (config.frontendOriginRegex) {
+    return new RegExp(config.frontendOriginRegex).test(origin);
+  }
+
+  return false;
+}
+
 function ensureMigrations() {
   if (!migrationPromise) {
     migrationPromise = runMigrations().catch((error) => {
@@ -24,7 +40,17 @@ function ensureMigrations() {
   return migrationPromise;
 }
 
-app.use(cors({ origin: config.frontendUrl, credentials: true }));
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    if (isAllowedCorsOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS origin not allowed: ${origin}`));
+  },
+}));
 app.use(express.json({ limit: '1mb' }));
 app.use(securityHeaders);
 
