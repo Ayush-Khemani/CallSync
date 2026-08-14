@@ -130,6 +130,39 @@ test('creates a meeting, exposes slots, and confirms one selected slot', async (
   assert.equal(confirmedMeeting.body.slots[0].is_selected, true);
 });
 
+test('host can cancel a meeting and public link reflects cancelled status', async () => {
+  const email = 'cancel-host@example.com';
+  const password = 'StrongPass123';
+
+  await request('POST', '/api/auth/register', { email, password });
+  const login = await request('POST', '/api/auth/login', { email, password });
+  const authHeaders = { Authorization: `Bearer ${login.body.token}` };
+
+  const createMeeting = await request('POST', '/api/meetings/create', {
+    attendeeEmail: 'cancel-guest@example.com',
+    attendeeName: 'Cancel Guest',
+    slots: ['2026-09-02T10:00:00.000Z'],
+  }, authHeaders);
+
+  assert.equal(createMeeting.statusCode, 201);
+
+  const unauthenticatedCancel = await request('POST', `/api/meetings/cancel/${createMeeting.body.uniqueLink}`);
+  assert.equal(unauthenticatedCancel.statusCode, 401);
+
+  const cancelMeeting = await request('POST', `/api/meetings/cancel/${createMeeting.body.uniqueLink}`, {}, authHeaders);
+  assert.equal(cancelMeeting.statusCode, 200);
+  assert.deepEqual(cancelMeeting.body, { message: 'Meeting cancelled' });
+
+  const publicMeeting = await request('GET', `/api/meetings/${createMeeting.body.uniqueLink}`);
+  assert.equal(publicMeeting.statusCode, 200);
+  assert.equal(publicMeeting.body.meeting.status, 'cancelled');
+  assert.equal(publicMeeting.body.slots[0].is_selected, false);
+
+  const duplicateCancel = await request('POST', `/api/meetings/cancel/${createMeeting.body.uniqueLink}`, {}, authHeaders);
+  assert.equal(duplicateCancel.statusCode, 409);
+  assert.deepEqual(duplicateCancel.body, { error: 'Meeting already cancelled' });
+});
+
 (async () => {
   await resetDatabase();
 

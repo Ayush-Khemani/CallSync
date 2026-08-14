@@ -191,4 +191,61 @@ router.post('/meetings/select-slot/:uniqueLink', asyncHandler(async (req, res) =
   res.json({ message: 'Slot selected', selectedSlot: selectedSlot.slot_time });
 }));
 
+router.post('/meetings/cancel/:uniqueLink', authMiddleware, asyncHandler(async (req, res) => {
+  const client = await pool.connect();
+  let meeting;
+  let host;
+  let slots;
+
+  try {
+    await client.query('BEGIN');
+
+    const meetingResult = await client.query(
+      'SELECT * FROM meetings WHERE unique_link = $1 AND user_id = $2 FOR UPDATE',
+      [req.params.uniqueLink, req.userId]
+    );
+    meeting = meetingResult.rows[0];
+    if (!meeting) {
+      throw new HttpError(404, 'Meeting not found');
+    }
+    if (meeting.status === 'cancelled') {
+      throw new HttpError(409, 'Meeting already cancelled');
+    }
+
+    const slotsResult = await client.query('SELECT * FROM slots WHERE meeting_id = $1', [meeting.id]);
+    slots = slotsResult.rows;
+    const hostResult = await client.query('SELECT email, google_token, outlook_token FROM users WHERE id = $1', [meeting.user_id]);
+    host = hostResult.rows[0];
+
+    await client.query(
+      'UPDATE meetings SET status = $1, selected_slot = NULL WHERE id = $2',
+      ['cancelled', meeting.id]
+    );
+    await client.query('UPDATE slots SET is_selected = FALSE WHERE meeting_id = $1', [meeting.id]);
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const saveGoogleToken = (tokenBundle) => pool.query(
+    'UPDATE users SET google_token = $1 WHERE id = $2',
+    [serializeCalendarToken(tokenBundle), meeting.user_id]
+  );
+  const saveOutlookToken = (tokenBundle) => pool.query(
+    'UPDATE users SET outlook_token = $1 WHERE id = $2',
+    [serializeCalendarToken(tokenBundle), meeting.user_id]
+  );
+
+  await Promise.all(slots.map((slot) => Promise.all([
+    deleteGoogleEvent(host.google_token, slot.google_event_id, { onTokenRefresh: saveGoogleToken }).catch(() => {}),
+    deleteOutlookEvent(host.outlook_token, slot.outlook_event_id, { onTokenRefresh: saveOutlookToken }).catch(() => {}),
+  ])));
+
+  res.json({ message: 'Meeting cancelled' });
+}));
+
 module.exports = router;
