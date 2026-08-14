@@ -134,7 +134,9 @@ Backend on Vercel:
 
 - Create a Vercel project named `callsync-backend` with `Backend` as the project root.
 - Use Vercel's Node backend support; `Backend/index.js` exports the Express app.
-- Set production environment variables in Vercel: `DATABASE_URL`, `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `FRONTEND_URL`, `SENDGRID_API_KEY`, `EMAIL_FROM`, Google OAuth credentials, and Outlook OAuth credentials.
+- Set production environment variables in Vercel: `DATABASE_URL`, `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `FRONTEND_URL`, `FRONTEND_URLS`, `SENDGRID_API_KEY`, `EMAIL_FROM`, Google OAuth credentials, and Outlook OAuth credentials.
+- For multiple frontend deployments, set `FRONTEND_URLS` to a comma-separated list of allowed origins, such as `https://call-sync-livid.vercel.app,https://call-sync-d5py7xx4o-ayush-khemanis-projects.vercel.app`.
+- For temporary Vercel preview deployments, `FRONTEND_ORIGIN_REGEX` can allow matching frontend URLs, such as `^https://call-sync-[a-z0-9-]+\\.vercel\\.app$`. Prefer exact `FRONTEND_URLS` for stable production domains.
 - Set `AUTO_RUN_MIGRATIONS=true` for the first production deploy. After the schema is confirmed, it can remain enabled for the current idempotent migrations or be set to `false` after running migrations manually.
 - Verify with `/api/health`.
 
@@ -153,6 +155,8 @@ Backend:
 - `JWT_SECRET`
 - `TOKEN_ENCRYPTION_KEY`
 - `FRONTEND_URL`
+- `FRONTEND_URLS`
+- `FRONTEND_ORIGIN_REGEX`
 - `AUTO_RUN_MIGRATIONS`
 - `SENDGRID_API_KEY`
 - `EMAIL_FROM`
