@@ -13,7 +13,7 @@ The production direction is an AI-assisted scheduling assistant: fewer back-and-
 - Meeting request creation
 - Public booking link
 - Slot selection and confirmation
-- Email notifications through SendGrid SMTP
+- Email notifications through the SendGrid HTTPS API
 - Postgres persistence
 
 ## Why This Project Matters
@@ -37,6 +37,7 @@ CallSync/
       services/
       utils/
     index.js
+    vercel.json
     package.json
   frontend/
     src/
@@ -49,7 +50,8 @@ CallSync/
 The backend has been split away from the original single-file prototype:
 
 - `src/app.js` configures Express, CORS, JSON parsing, routes, and error handling.
-- `src/server.js` runs migrations and starts the server.
+- `src/server.js` runs migrations and starts the local/long-running server.
+- `index.js` exports the Express app for Vercel's Node backend runtime.
 - `src/config/env.js` centralizes environment configuration.
 - `src/db/pool.js` owns Postgres connection pooling.
 - `src/db/migrate.js` loads SQL migrations.
@@ -119,19 +121,26 @@ npm run migrate
 
 ## Deployment
 
-Backend:
+Production now targets Vercel and Supabase instead of Render.
 
-- `render.yaml` defines a Render web service for `Backend`.
-- The Blueprint defines a Render Postgres database and injects `DATABASE_URL` with `fromDatabase`.
-- The backend runs migrations on startup. This keeps the Free web service compatible because Render pre-deploy commands require a paid web service.
-- Set the remaining secret/config values in Render: `FRONTEND_URL`, `SENDGRID_API_KEY`, `EMAIL_FROM`, Google OAuth credentials, and Outlook OAuth credentials.
-- Render can generate `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY` from the Blueprint.
-- `/api/health` is configured as the health check.
-- Free Render Postgres databases expire after 30 days. Upgrade the database before using CallSync for a real production launch.
+Supabase:
 
-Frontend:
+- Create a Supabase project under the `Sing` organization.
+- Use the Supabase pooled Postgres connection string for `DATABASE_URL`.
+- The backend can auto-run the SQL in `Backend/migrations` on first request when `AUTO_RUN_MIGRATIONS` is not `false`.
+- Keep Supabase service role and secret keys out of the frontend. CallSync only needs the Postgres connection string on the backend.
 
-- Deploy `frontend` as the Vercel project root.
+Backend on Vercel:
+
+- Create a Vercel project named `callsync-backend` with `Backend` as the project root.
+- Use Vercel's Node backend support; `Backend/index.js` exports the Express app.
+- Set production environment variables in Vercel: `DATABASE_URL`, `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `FRONTEND_URL`, `SENDGRID_API_KEY`, `EMAIL_FROM`, Google OAuth credentials, and Outlook OAuth credentials.
+- Set `AUTO_RUN_MIGRATIONS=true` for the first production deploy. After the schema is confirmed, it can remain enabled for the current idempotent migrations or be set to `false` after running migrations manually.
+- Verify with `/api/health`.
+
+Frontend on Vercel:
+
+- Create a Vercel project named `callsync-frontend` with `frontend` as the project root.
 - Set `REACT_APP_API_URL` to the deployed backend URL.
 - Set Google and Outlook client IDs.
 - `frontend/vercel.json` keeps client-side routes working on refresh.
@@ -144,6 +153,7 @@ Backend:
 - `JWT_SECRET`
 - `TOKEN_ENCRYPTION_KEY`
 - `FRONTEND_URL`
+- `AUTO_RUN_MIGRATIONS`
 - `SENDGRID_API_KEY`
 - `EMAIL_FROM`
 - `GOOGLE_CLIENT_ID`
@@ -161,11 +171,12 @@ Frontend:
 
 ## Production Gaps Still To Close
 
-- Add persistent host scheduling preferences instead of sending them per request.
+- Deploy backend on Vercel and point it at Supabase Postgres.
+- Deploy frontend on Vercel and point it at the Vercel backend.
 - Add link expiry.
-- Add cancellation and rescheduling flows.
-- Add rate limiting and request validation middleware.
-- Expand backend integration tests around auth, calendar refresh, meeting creation, and booking.
+- Add rescheduling flows.
+- Add request validation middleware.
+- Expand backend integration tests around calendar refresh and booking edge cases.
 - Add observability through Sentry or similar.
 - Add AI scheduling features only after the core workflow is reliable.
 
