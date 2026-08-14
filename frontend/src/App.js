@@ -1,4 +1,4 @@
-// CalSync Frontend - Production Ready (React)
+// CallSync Frontend - Production Ready (React)
 // Install: npx create-react-app calsync-frontend
 // Then: npm install axios react-router-dom
 
@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://callsync-backend.onrender.com/api';
+const API_URL = (process.env.REACT_APP_API_URL || 'https://callsync-backend.onrender.com').replace(/\/$/, '');
 
 // Login Page
 function LoginPage() {
@@ -21,7 +21,6 @@ function LoginPage() {
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
       const response = await axios.post(`${API_URL}${endpoint}`, { email, password });
-      // 
       if (isLogin) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('userId', response.data.userId);
@@ -40,7 +39,7 @@ function LoginPage() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h1>CalSync - Meeting Scheduler</h1>
+        <h1>CallSync - Meeting Scheduler</h1>
         <form onSubmit={handleSubmit} style={styles.form}>
           <input
             type="email"
@@ -91,21 +90,35 @@ function Dashboard() {
     const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
     const redirectUri = `${window.location.origin}/auth/google`;
     const scope = 'https://www.googleapis.com/auth/calendar';
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope,
+      access_type: 'offline',
+      prompt: 'consent',
+    });
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   };
 
   const handleOutlookAuth = () => {
     const clientId = process.env.REACT_APP_OUTLOOK_CLIENT_ID;
     const redirectUri = `${window.location.origin}/auth/outlook`;
     const scope = 'Calendars.ReadWrite offline_access';
-    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope,
+    });
+    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.dashboard}>
         <div style={styles.header}>
-          <h1>CalSync Dashboard</h1>
+          <h1>CallSync Dashboard</h1>
           <button onClick={handleLogout} style={{ ...styles.button, backgroundColor: '#dc3545' }}>
             Logout
           </button>
@@ -204,7 +217,7 @@ function CreateMeetingTab() {
     }
 
     try {
-      const response = await axios.post(
+      await axios.post(
         `${API_URL}/api/meetings/create`,
         {
           attendeeEmail,
@@ -292,7 +305,6 @@ function CreateMeetingTab() {
 
 // Select Slot Page (Public)
 function SelectSlotPage() {
-  const [meeting, setMeeting] = useState(null);
   const [slots, setSlots] = useState([]);
   const [message, setMessage] = useState('');
   const uniqueLink = window.location.pathname.split('/').pop();
@@ -311,11 +323,11 @@ function SelectSlotPage() {
 
   const handleSelectSlot = async (slot) => {
     try {
-      const response = await axios.post(
+      await axios.post(
         `${API_URL}/api/meetings/select-slot/${uniqueLink}`,
         { slotId: slot.id } // send actual numeric id
       );
-      setMessage('✓ Slot selected! Confirmation email sent.');
+      setMessage('Slot selected. Confirmation email sent.');
     } catch (err) {
       setMessage('Error selecting slot');
     }

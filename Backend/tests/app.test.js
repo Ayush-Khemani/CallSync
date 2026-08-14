@@ -1,0 +1,104 @@
+const assert = require('node:assert/strict');
+const http = require('node:http');
+
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/callsync';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
+process.env.NODE_ENV = 'test';
+
+const app = require('../src/app');
+
+function request(method, path, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer(app);
+
+    server.listen(0, () => {
+      const address = server.address();
+      const payload = body ? JSON.stringify(body) : undefined;
+      const req = http.request({
+        method,
+        host: '127.0.0.1',
+        port: address.port,
+        path,
+        headers: {
+          ...(payload ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } : {}),
+          ...headers,
+        },
+      }, (res) => {
+        let raw = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () => {
+          server.close(() => {
+            resolve({
+              statusCode: res.statusCode,
+              body: raw ? JSON.parse(raw) : null,
+            });
+          });
+        });
+      });
+
+      req.on('error', (error) => {
+        server.close(() => reject(error));
+      });
+
+      if (payload) {
+        req.write(payload);
+      }
+      req.end();
+    });
+  });
+}
+
+const tests = [];
+
+function test(name, fn) {
+  tests.push({ name, fn });
+}
+
+test('GET /api/health returns service status', async () => {
+  const response = await request('GET', '/api/health');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, { status: 'ok', service: 'CallSync backend' });
+});
+
+test('protected meeting creation rejects missing auth token', async () => {
+  const response = await request('POST', '/api/meetings/create', {
+    attendeeEmail: 'guest@example.com',
+    attendeeName: 'Guest',
+    slots: ['2026-09-01T10:00:00.000Z'],
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.body, { error: 'No token provided' });
+});
+
+test('registration validates email and password before database writes', async () => {
+  const invalidEmail = await request('POST', '/api/auth/register', {
+    email: 'not-an-email',
+    password: 'password123',
+  });
+  const shortPassword = await request('POST', '/api/auth/register', {
+    email: 'person@example.com',
+    password: 'short',
+  });
+
+  assert.equal(invalidEmail.statusCode, 400);
+  assert.deepEqual(invalidEmail.body, { error: 'Enter a valid email address' });
+  assert.equal(shortPassword.statusCode, 400);
+  assert.deepEqual(shortPassword.body, { error: 'Password must be at least 8 characters' });
+});
+
+(async () => {
+  for (const { name, fn } of tests) {
+    await fn();
+    console.log(`ok - ${name}`);
+  }
+
+  console.log(`${tests.length} backend tests passed`);
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

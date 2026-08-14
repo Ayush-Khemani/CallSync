@@ -1,11 +1,13 @@
 {
-  "name": "calsync-backend",
+  "name": "callsync-backend",
   "version": "1.0.0",
-  "description": "CalSync Meeting Scheduler Backend",
-  "main": "server.js",
+  "description": "CallSync meeting scheduling backend",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "check": "node scripts/check-syntax.js",
+    "test": "node tests/app.test.js"
   },
   "keywords": [],
   "author": "",
