@@ -1,8 +1,10 @@
 # CallSync
 
-CallSync is a meeting scheduling product that helps a host connect Google/Outlook calendars, offer available slots, send a booking link, and let an invitee confirm one time.
+CallSync is a lightweight meeting CRM for high-value calls. It helps a host turn interested replies into booked, prepared, and followed-up meetings.
 
-The production direction is an AI-assisted scheduling assistant: fewer back-and-forth emails, cleaner calendar coordination, and smarter suggestions for when meetings should happen.
+The production direction is not "another scheduling link." CallSync should own the meeting lifecycle: create a focused invite, offer curated availability, track booking status, surface follow-up risk, prepare the host, and capture what happened after the call.
+
+See [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md) for the staged production roadmap.
 
 ## Current Product Scope
 
@@ -11,6 +13,8 @@ The production direction is an AI-assisted scheduling assistant: fewer back-and-
 - Outlook Calendar OAuth callback
 - Availability lookup across connected calendars
 - Meeting request creation
+- Assisted meeting setup with intent-based templates
+- Meeting pipeline dashboard
 - Public booking link
 - Slot selection and confirmation
 - Email notifications through the SendGrid HTTPS API
@@ -20,7 +24,7 @@ The production direction is an AI-assisted scheduling assistant: fewer back-and-
 
 Scheduling is a real workflow problem. Teams, students, recruiters, founders, and clients all lose time coordinating meetings. CallSync can become a polished productivity product because the core value is easy to understand:
 
-> Connect calendars, offer times, let the other person choose, and keep everyone in sync.
+> Turn interested replies into booked, prepared, and followed-up meetings.
 
 ## Repository Layout
 
@@ -175,24 +179,27 @@ Frontend:
 
 ## Production Gaps Still To Close
 
-- Deploy backend on Vercel and point it at Supabase Postgres.
-- Deploy frontend on Vercel and point it at the Vercel backend.
-- Add link expiry.
+- Persist meeting briefs, invite copy, qualification questions, and internal notes.
+- Collect guest answers on the public booking page.
+- Add follow-up status, reminders, and "mark followed up" actions.
+- Add post-call outcomes and next-step tracking.
 - Add rescheduling flows.
+- Add link expiry.
 - Add request validation middleware.
 - Expand backend integration tests around calendar refresh and booking edge cases.
 - Add observability through Sentry or similar.
-- Add AI scheduling features only after the core workflow is reliable.
+- Add real AI generation once the workflow data model is reliable.
 
 ## AI Roadmap
 
 The best AI additions are workflow-specific:
 
-- Natural language meeting creation: "Schedule a 30-minute call with Sarah next week after 2 PM."
+- Natural language meeting creation: "Create a 30-minute investor intro next week after 2 PM and ask what fund they are from."
 - Smart slot ranking based on working hours, calendar density, and meeting buffers.
-- Invite email drafting and follow-up reminders.
+- Invite email drafting and follow-up reminders tied to meeting status.
+- Pre-call briefs based on guest answers and meeting intent.
 - Conflict explanations: why a time was not suggested.
-- Weekly scheduling summary for the host.
+- Weekly meeting pipeline summary for the host.
 
 ## Presentation Plan
 
