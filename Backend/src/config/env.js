@@ -1,28 +1,26 @@
 require('dotenv').config();
 
-const requiredInProduction = ['DATABASE_URL', 'JWT_SECRET', 'TOKEN_ENCRYPTION_KEY', 'FRONTEND_URL'];
-
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
 function optionalEnv(name, fallback = '') {
   return process.env[name] || fallback;
 }
 
 const nodeEnv = optionalEnv('NODE_ENV', 'development');
 
-if (nodeEnv === 'production') {
-  requiredInProduction.forEach(requireEnv);
+const jwtSecret = optionalEnv('JWT_SECRET', 'dev-only-change-me');
+
+function requireRuntimeEnv(name, value) {
+  if (!value) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
 }
 
-const jwtSecret = optionalEnv('JWT_SECRET', 'dev-only-change-me');
-if (nodeEnv === 'production' && jwtSecret.includes('change')) {
-  throw new Error('JWT_SECRET must be a strong production secret');
+function getJwtSecret() {
+  if (nodeEnv === 'production' && (!process.env.JWT_SECRET || jwtSecret.includes('change'))) {
+    throw new Error('JWT_SECRET must be a strong production secret');
+  }
+
+  return requireRuntimeEnv('JWT_SECRET', jwtSecret);
 }
 
 module.exports = {
@@ -31,8 +29,9 @@ module.exports = {
   frontendUrl: optionalEnv('FRONTEND_URL', 'http://localhost:3000').replace(/\/$/, ''),
   rateLimitWindowMs: Number(optionalEnv('RATE_LIMIT_WINDOW_MS', '900000')),
   rateLimitMax: Number(optionalEnv('RATE_LIMIT_MAX', '100')),
-  databaseUrl: requireEnv('DATABASE_URL'),
+  databaseUrl: optionalEnv('DATABASE_URL', ''),
   jwtSecret,
+  getJwtSecret,
   tokenEncryptionKey: optionalEnv('TOKEN_ENCRYPTION_KEY', ''),
   sendgridApiKey: optionalEnv('SENDGRID_API_KEY', ''),
   emailFrom: optionalEnv('EMAIL_FROM', 'no-reply@callsync.local'),
