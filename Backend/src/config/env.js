@@ -14,6 +14,8 @@ function listEnv(name, fallback = '') {
 const nodeEnv = optionalEnv('NODE_ENV', 'development');
 
 const jwtSecret = optionalEnv('JWT_SECRET', 'dev-only-change-me');
+const databaseUrl = optionalEnv('DATABASE_URL_V2', optionalEnv('DATABASE_URL', ''));
+const databaseUrlSource = process.env.DATABASE_URL_V2 ? 'DATABASE_URL_V2' : 'DATABASE_URL';
 
 function requireRuntimeEnv(name, value) {
   if (!value) {
@@ -38,7 +40,8 @@ module.exports = {
   frontendOriginRegex: optionalEnv('FRONTEND_ORIGIN_REGEX', ''),
   rateLimitWindowMs: Number(optionalEnv('RATE_LIMIT_WINDOW_MS', '900000')),
   rateLimitMax: Number(optionalEnv('RATE_LIMIT_MAX', '100')),
-  databaseUrl: optionalEnv('DATABASE_URL', ''),
+  databaseUrl,
+  databaseUrlSource,
   jwtSecret,
   getJwtSecret,
   tokenEncryptionKey: optionalEnv('TOKEN_ENCRYPTION_KEY', ''),
