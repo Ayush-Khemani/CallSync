@@ -20,8 +20,8 @@ jest.mock('axios', () => ({
   },
 }), { virtual: true });
 
-test('renders CallSync login page', () => {
+test('renders CallSync landing page', () => {
   render(<App />);
-  const linkElement = screen.getByRole('heading', { name: /CallSync/i });
+  const linkElement = screen.getByRole('heading', { name: /Send fewer links/i });
   expect(linkElement).toBeInTheDocument();
 });
