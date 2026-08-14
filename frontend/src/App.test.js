@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import App, { getFollowUpRisk, getMeetingPipelineStages } from './App';
+import App, { getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages } from './App';
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -62,5 +62,20 @@ test('scores pending invite follow-up risk', () => {
   });
   expect(getFollowUpRisk({ status: 'confirmed', createdAt: new Date(now - 5 * 86400000).toISOString() })).toMatchObject({
     level: 'none',
+  });
+});
+
+test('keeps host meeting actions explicit by status', () => {
+  expect(getMeetingActionState({ status: 'pending' })).toMatchObject({
+    canCancel: true,
+    openLabel: 'Open booking page',
+    copyLabel: 'Copy booking link',
+    cancelLabel: 'Cancel invite',
+  });
+
+  expect(getMeetingActionState({ status: 'cancelled' })).toMatchObject({
+    canCancel: false,
+    openLabel: 'View closed link',
+    cancelLabel: 'Cancelled',
   });
 });

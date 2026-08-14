@@ -56,6 +56,16 @@ export function getMeetingPipelineStages(meetings) {
   ];
 }
 
+export function getMeetingActionState(meeting) {
+  const isCancelled = meeting.status === 'cancelled';
+  return {
+    canCancel: !isCancelled,
+    openLabel: isCancelled ? 'View closed link' : 'Open booking page',
+    copyLabel: 'Copy booking link',
+    cancelLabel: isCancelled ? 'Cancelled' : 'Cancel invite',
+  };
+}
+
 const MEETING_TEMPLATES = {
   founder: {
     label: 'Founder sales',
@@ -360,6 +370,20 @@ function Meetings() {
     }
   }
 
+  function MeetingActions({ meeting, compact = false }) {
+    const actions = getMeetingActionState(meeting);
+    const actionLabel = meeting.attendeeName ? `Actions for ${meeting.attendeeName}` : 'Meeting actions';
+
+    return (
+      <aside className={compact ? 'meeting-actions compact-actions' : 'meeting-actions'} aria-label={actionLabel}>
+        {!compact && <span>Actions</span>}
+        <a className="btn primary small" href={url(meeting.uniqueLink)} target="_blank" rel="noreferrer" aria-label={`${actions.openLabel} for ${meeting.attendeeName}`} title={actions.openLabel}>{compact ? 'Open' : actions.openLabel}</a>
+        <button className="btn light small" onClick={() => copy(meeting.uniqueLink)} aria-label={`${actions.copyLabel} for ${meeting.attendeeName}`} title={actions.copyLabel}>{compact ? 'Copy' : actions.copyLabel}</button>
+        {!compact && <button className="btn danger small" disabled={!actions.canCancel} onClick={() => cancel(meeting.uniqueLink)} aria-label={`${actions.cancelLabel} for ${meeting.attendeeName}`} title={actions.cancelLabel}>{actions.cancelLabel}</button>}
+      </aside>
+    );
+  }
+
   return (
     <section className="panel">
       <div className="panel-head"><div><h2>Meeting pipeline</h2><p>Track every invite from link sent to booked, follow-up, or closed.</p></div><button className="btn light" onClick={load}>Refresh</button></div>
@@ -377,6 +401,7 @@ function Meetings() {
                     <small>{meeting.attendeeEmail}</small>
                     <span>{meeting.status === 'confirmed' ? formatDateTime(meeting.selectedSlot) : `${daysSince(meeting.createdAt)} days since created`}</span>
                     {risk.level !== 'none' && <em className={`risk-chip ${risk.level}`}>{risk.label}</em>}
+                    <MeetingActions meeting={meeting} compact />
                   </div>
                 );
               })}
@@ -405,7 +430,7 @@ function Meetings() {
                           <div className="meta"><span>Selected <b>{formatDateTime(meeting.selectedSlot)}</b></span><span>Window <b>{formatDateTime(meeting.firstSlot)} - {formatDateTime(meeting.lastSlot)}</b></span><span>Slots <b>{meeting.slotCount}</b></span></div>
                           {risk.level !== 'none' && <div className={`followup-risk ${risk.level}`}><b>{risk.label}</b><span>{risk.detail}</span></div>}
                         </div>
-                        <aside><a className="btn primary small" href={url(meeting.uniqueLink)} target="_blank" rel="noreferrer">Open</a><button className="btn light small" onClick={() => copy(meeting.uniqueLink)}>Copy</button><button className="btn danger small" disabled={meeting.status === 'cancelled'} onClick={() => cancel(meeting.uniqueLink)}>Cancel</button></aside>
+                        <MeetingActions meeting={meeting} />
                       </article>
                     );
                   })}
