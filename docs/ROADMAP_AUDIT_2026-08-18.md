@@ -5,6 +5,7 @@ This audit compares `docs/PRODUCT_ROADMAP.md` against the current CallSync codeb
 Status legend:
 
 - **Complete** — the roadmap task is implemented in the current product flow.
+- **Complete in source** — implementation is committed, but the latest production build has not been verified yet.
 - **Partial** — useful behavior exists, but the roadmap requirement is not complete.
 - **Not started** — no meaningful implementation exists yet.
 
@@ -16,7 +17,7 @@ Status legend:
 | Stage 2 — Assisted Meeting Creation | **Complete / local heuristic** | Intent-first creation and four production templates are implemented; generation is deterministic frontend logic rather than a real AI endpoint. |
 | Stage 3 — Persistent Meeting Briefs | **Complete** | Meeting brief data is persisted, guest questions are shown during booking, guest answers are stored, and host notes/context are available on the dashboard. |
 | Stage 4 — Follow-Up Workflow | **Complete for manual follow-up** | Follow-up timestamps/counts/next-action dates are persisted, stale invites are surfaced from reminder state, contextual nudge copy is generated, and hosts can record completed follow-ups. Connected-mailbox sending remains Stage 6. |
-| Stage 5 — Pre-Call Brief & Outcome Tracking | **Not started** | Persistent meeting context exists, but there is no dedicated pre-call view or post-call outcome model yet. |
+| Stage 5 — Pre-Call Brief & Outcome Tracking | **Complete in source** | A dedicated Prepare & Outcomes workspace builds pre-call briefs from durable meeting context, persists call outcomes/next steps, and filters booked meetings by next action. |
 | Stage 6 — AI & Integrations | **Partial infrastructure** | Google/Outlook calendar connectivity, conflict-aware availability and SendGrid notifications exist. Real AI, connected mailbox sending, ranking/explanations, analytics, billing readiness and observability remain. |
 
 ---
@@ -69,32 +70,27 @@ Status legend:
 | Roadmap task | Status | Current implementation |
 | --- | --- | --- |
 | Add follow-up status and timestamps | **Complete** | `003_follow_up_workflow.sql` adds `last_followed_up_at`, `follow_up_count`, and `next_follow_up_at`. |
-| Generate copyable follow-up messages | **Complete** | The dashboard generates a concise contextual nudge from the guest, meeting type and booking URL, with different copy for repeat touches. |
+| Generate copyable follow-up messages | **Complete** | The dashboard generates a contextual nudge from the guest, meeting type and booking URL, with different copy for repeat touches. |
 | Add "mark followed up" action | **Complete** | `PATCH /api/meetings/:id/follow-up` records the timestamp, increments the count, and schedules the next check. |
 | Add reminder rules for stale pending invites | **Complete** | Initial pending requests are due after two days; after a recorded follow-up, the next check is scheduled three days later. Risk is based on the persisted next-action date. |
 | Later: send follow-ups through connected Gmail/Outlook | **Deferred to Stage 6** | Stage 4 intentionally keeps sending manual while making the copy/action/state persistent. |
 
 ### Stage 4 implementation
 
-- New migration: `Backend/migrations/003_follow_up_workflow.sql`.
-- New authenticated API: `GET /api/meetings/follow-up-state`.
-- New authenticated action: `PATCH /api/meetings/:id/follow-up`.
-- New frontend follow-up model: `frontend/src/followUpWorkflow.js`.
-- New dashboard product surface: `frontend/src/Stage4Product.js`.
-- New follow-up UI styling: `frontend/src/Stage4FollowUp.css`.
-- `/dashboard` and public booking routes now pass through the Stage 4 product surface.
-- Follow-up risk resets after outreach and surfaces again when the persisted next-action time becomes due.
-- Compact pipeline cards can copy a nudge; expanded meeting detail shows suggested copy, last outreach, next check and a **Mark followed up** action.
+- `Backend/migrations/003_follow_up_workflow.sql`
+- `Backend/src/routes/followUpRoutes.js`
+- `frontend/src/followUpWorkflow.js`
+- `frontend/src/Stage4Product.js`
+- `frontend/src/Stage4FollowUp.css`
+- `/dashboard` uses the Stage 4 pipeline and public booking remains compatible.
 
 ### Acceptance check
 
-- **Pending invites do not silently sit in the system:** yes. They are assigned a follow-up due date and move into the needs-follow-up stage when due.
-- **Host knows exactly who needs a nudge and what to say:** yes. The pipeline identifies due requests and supplies copyable follow-up text.
-- **Follow-up activity survives refresh/redeploy:** yes. Timestamp, count and next follow-up time are stored in PostgreSQL.
+- **Pending invites do not silently sit in the system:** yes.
+- **Host knows exactly who needs a nudge and what to say:** yes.
+- **Follow-up activity survives refresh/redeploy:** yes; it is persisted in PostgreSQL.
 
 **Stage 4 result: Complete for the manual follow-up workflow.**
-
-Connected Gmail/Outlook sending remains deliberately out of scope until Stage 6 so Stage 4 does not duplicate the integration milestone.
 
 ---
 
@@ -104,19 +100,36 @@ Connected Gmail/Outlook sending remains deliberately out of scope until Stage 6 
 
 | Roadmap task | Status | Current implementation |
 | --- | --- | --- |
-| Add pre-call brief view for upcoming booked meetings | **Not started** | Booked meetings carry durable context, but there is no dedicated preparation view. |
-| Include guest answers, meeting goal, suggested agenda and opening prompt | **Partial prerequisite complete** | Guest answers and meeting goal exist; suggested agenda/opening prompt do not. |
-| Add post-call outcome fields: happened, useful, next step, follow-up date | **Not started** | No outcome model exists. |
-| Add dashboard filters for next actions | **Not started** | Current grouping is lifecycle-status based. |
+| Add pre-call brief view for upcoming booked meetings | **Complete in source** | `/prepare` is a dedicated Prepare & Outcomes workspace for booked calls. |
+| Include guest answers, meeting goal, suggested agenda and opening prompt | **Complete in source** | `buildPreCallBrief()` turns the stored goal and guest answers into a focused agenda and opening prompt; raw guest answers and private host notes remain visible. |
+| Add post-call outcome fields: happened, useful, next step, follow-up date | **Complete in source** | `004_pre_call_outcomes.sql` persists happened/useful, next step, follow-up date, outcome notes and recorded timestamp. |
+| Add dashboard filters for next actions | **Complete in source** | The workspace filters booked calls into Prepare, Outcome due, Next action due, Scheduled next steps and Captured. |
 
-**Stage 5 is now the next product milestone.**
+### Stage 5 implementation
 
-Recommended order:
+- New migration: `Backend/migrations/004_pre_call_outcomes.sql`.
+- New authenticated read API: `GET /api/meetings/outcome-state`.
+- New authenticated write API: `PATCH /api/meetings/:id/outcome`.
+- New preparation/next-action model: `frontend/src/stage5Workflow.js`.
+- New workspace: `frontend/src/Stage5Prep.js` at `/prepare`.
+- New visual layer: `frontend/src/Stage5Prep.css`.
+- Dashboard includes a **Prepare & outcomes** entry point without replacing the Stage 4 pipeline.
+- Pre-call agenda is deterministic and grounded in persisted meeting context; it is intentionally not marketed as AI before Stage 6.
+- Post-call outcome captures whether the meeting happened, whether it was useful, what happens next, when to follow up, and durable notes.
+- Next-action prioritization surfaces overdue follow-ups first, then missing outcomes, then upcoming preparation.
+- `frontend/src/stage5Workflow.test.js` covers preparation, outcome-due, next-action and filtering behavior.
 
-1. Add a dedicated upcoming-booked/pre-call view using stored guest answers and meeting goal.
-2. Add suggested agenda and opening prompt.
-3. Persist post-call outcome, usefulness, next step and follow-up date.
-4. Add next-action dashboard filtering.
+### Acceptance check
+
+- **Hosts enter calls prepared:** yes in source. Booked calls get a focused goal, agenda, opening prompt and guest context view.
+- **Meetings produce trackable outcomes:** yes in source. Outcome and next-step state are persisted rather than disappearing into the calendar.
+- **Next actions are visible:** yes in source through dedicated filters and urgency ordering.
+
+**Stage 5 result: Complete in source.**
+
+### Deployment verification note
+
+The latest Stage 5 Git commits are currently blocked from new Vercel builds by the account's Vercel **build-rate limit**. The last observed Stage 4 frontend/backend production builds remain healthy; GitHub's Vercel checks for the latest Stage 5 commit fail specifically with the Vercel build-rate-limit target, rather than a compiler or runtime error. Stage 5 should therefore remain marked **Complete in source** until a fresh production build runs successfully.
 
 ---
 
@@ -124,7 +137,7 @@ Recommended order:
 
 **Goal:** Connect the workflow to real communication and calendar systems.
 
-Current useful infrastructure:
+### Existing infrastructure
 
 - Google Calendar OAuth/token storage.
 - Outlook Calendar OAuth/token storage.
@@ -133,13 +146,14 @@ Current useful infrastructure:
 - Calendar event creation/deletion.
 - SendGrid request and confirmation notifications.
 - Durable meeting briefs and guest context.
-- Persistent follow-up workflow from Stage 4.
+- Persistent follow-up workflow.
+- Pre-call preparation and outcome model in source.
 
-Still required:
+### Still required
 
 1. Real AI generation endpoint for meeting brief, follow-up and pre-call generation.
 2. Gmail/Outlook sending for invites and follow-ups.
-3. Smarter slot ranking and explanations.
+3. Smarter slot ranking and conflict explanations.
 4. Booking/follow-up/outcome analytics.
 5. Observability and alerting.
 6. Security review/token-storage hardening.
@@ -149,13 +163,27 @@ Still required:
 
 # Recommended build order from here
 
-## Priority 1 — Stage 5: preparation + outcomes
+## Priority 1 — Stage 6A: intelligence without changing the product shape
 
-Build the pre-call experience first, then outcome capture and next-action tracking.
+1. Add a server-side AI generation boundary with deterministic fallback.
+2. Upgrade meeting brief generation first.
+3. Reuse the same boundary for follow-up copy and pre-call suggestions.
+4. Keep every AI result editable and grounded in persisted meeting context.
 
-## Priority 2 — Stage 6: intelligence + communication
+## Priority 2 — Stage 6B: communication
 
-Add real AI generation, connected mailbox sending, smarter ranking, analytics and production maturity.
+1. Add Gmail send scopes and mailbox sending.
+2. Add Outlook Mail send scopes and mailbox sending.
+3. Keep SendGrid for transactional system notifications only.
+4. Record actual outbound follow-up timestamps against the Stage 4 model.
+
+## Priority 3 — Stage 6C: intelligence, measurement and maturity
+
+1. Smarter slot ranking and conflict explanations.
+2. Booking/follow-up/outcome analytics.
+3. Observability and alerting.
+4. Security/token-storage hardening.
+5. Billing readiness after paid boundaries are clear.
 
 # What we should not build next
 
@@ -165,7 +193,6 @@ To keep CallSync aligned with its product promise, avoid spending the next itera
 - generic AI chat,
 - extra calendar providers,
 - team/admin complexity,
-- paid-plan plumbing,
 - broad CRM features.
 
-The next milestone is **Stage 5: turn booked meetings into prepared calls with trackable outcomes**.
+The next milestone is **Stage 6A: add real intelligence behind the existing meeting workflow, without turning CallSync into a chatbot**.
