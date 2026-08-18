@@ -15,6 +15,44 @@ const { sendMeetingRequest, sendMeetingConfirmation } = require('../services/ema
 
 const router = express.Router();
 
+function cleanText(value, fallback = '', maxLength = 5000) {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  return (trimmed || fallback).slice(0, maxLength);
+}
+
+function normalizeQuestions(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((question) => cleanText(question, '', 300))
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function normalizeGuestAnswers(value, questions) {
+  const submitted = Array.isArray(value) ? value : [];
+  return questions.map((question, index) => {
+    const exact = submitted.find((item) => item && item.question === question);
+    const positional = submitted[index];
+    const answer = cleanText(exact?.answer ?? positional?.answer ?? '', '', 2000);
+    return { question, answer };
+  });
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeBrief(value = {}) {
+  return {
+    type: cleanText(value.type, 'General meeting', 120),
+    goal: cleanText(value.goal, '', 3000),
+    inviteMessage: cleanText(value.message || value.inviteMessage, '', 5000),
+    qualificationQuestions: normalizeQuestions(value.questions || value.qualificationQuestions),
+    internalNotes: cleanText(value.internalNotes, '', 10000),
+  };
+}
+
 function validateMeetingPayload(payload) {
   if (!payload.attendeeEmail || !payload.attendeeName || !Array.isArray(payload.slots) || payload.slots.length === 0) {
     throw new HttpError(400, 'Attendee name, attendee email, and at least one slot are required');
@@ -24,6 +62,7 @@ function validateMeetingPayload(payload) {
 router.post('/meetings/create', authMiddleware, asyncHandler(async (req, res) => {
   validateMeetingPayload(req.body);
   const { attendeeEmail, attendeeName, slots } = req.body;
+  const brief = normalizeBrief(req.body.brief);
   const uniqueLink = createMeetingLinkToken();
 
   const client = await pool.connect();
@@ -32,8 +71,29 @@ router.post('/meetings/create', authMiddleware, asyncHandler(async (req, res) =>
     await client.query('BEGIN');
 
     const meetingResult = await client.query(
-      'INSERT INTO meetings (user_id, attendee_email, attendee_name, unique_link) VALUES ($1, $2, $3, $4) RETURNING id',
-      [req.userId, attendeeEmail, attendeeName, uniqueLink]
+      `INSERT INTO meetings (
+        user_id,
+        attendee_email,
+        attendee_name,
+        unique_link,
+        meeting_type,
+        meeting_goal,
+        invite_message,
+        qualification_questions,
+        internal_notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+      RETURNING id`,
+      [
+        req.userId,
+        attendeeEmail,
+        attendeeName,
+        uniqueLink,
+        brief.type,
+        brief.goal,
+        brief.inviteMessage,
+        JSON.stringify(brief.qualificationQuestions),
+        brief.internalNotes,
+      ]
     );
 
     meetingId = meetingResult.rows[0].id;
@@ -79,7 +139,14 @@ router.post('/meetings/create', authMiddleware, asyncHandler(async (req, res) =>
     );
   }));
 
-  await sendMeetingRequest({ attendeeEmail, attendeeName, slots, uniqueLink }).catch(() => {});
+  await sendMeetingRequest({
+    attendeeEmail,
+    attendeeName,
+    slots,
+    uniqueLink,
+    meetingType: brief.type,
+    inviteMessage: brief.inviteMessage,
+  }).catch(() => {});
 
   res.status(201).json({
     message: 'Meeting created',
@@ -97,6 +164,12 @@ router.get('/meetings', authMiddleware, asyncHandler(async (req, res) => {
       m.selected_slot,
       m.status,
       m.created_at,
+      m.meeting_type,
+      m.meeting_goal,
+      m.invite_message,
+      m.qualification_questions,
+      m.guest_answers,
+      m.internal_notes,
       COUNT(s.id)::int AS slot_count,
       COUNT(*) FILTER (WHERE s.is_selected)::int AS selected_slot_count,
       MIN(s.slot_time) AS first_slot,
@@ -118,6 +191,12 @@ router.get('/meetings', authMiddleware, asyncHandler(async (req, res) => {
       selectedSlot: meeting.selected_slot,
       status: meeting.status,
       createdAt: meeting.created_at,
+      meetingType: meeting.meeting_type || 'General meeting',
+      meetingGoal: meeting.meeting_goal || '',
+      inviteMessage: meeting.invite_message || '',
+      qualificationQuestions: asArray(meeting.qualification_questions),
+      guestAnswers: asArray(meeting.guest_answers),
+      internalNotes: meeting.internal_notes || '',
       slotCount: meeting.slot_count,
       selectedSlotCount: meeting.selected_slot_count,
       firstSlot: meeting.first_slot,
@@ -126,9 +205,39 @@ router.get('/meetings', authMiddleware, asyncHandler(async (req, res) => {
   });
 }));
 
+router.patch('/meetings/:id/notes', authMiddleware, asyncHandler(async (req, res) => {
+  const meetingId = Number(req.params.id);
+  if (!Number.isInteger(meetingId)) {
+    throw new HttpError(400, 'Valid meeting ID required');
+  }
+
+  const internalNotes = cleanText(req.body.internalNotes, '', 10000);
+  const result = await pool.query(
+    'UPDATE meetings SET internal_notes = $1 WHERE id = $2 AND user_id = $3 RETURNING id, internal_notes',
+    [internalNotes, meetingId, req.userId]
+  );
+
+  if (!result.rows[0]) {
+    throw new HttpError(404, 'Meeting not found');
+  }
+
+  res.json({ message: 'Notes saved', internalNotes: result.rows[0].internal_notes });
+}));
+
 router.get('/meetings/:uniqueLink', asyncHandler(async (req, res) => {
   const meetingResult = await pool.query(
-    'SELECT id, attendee_email, attendee_name, selected_slot, status FROM meetings WHERE unique_link = $1',
+    `SELECT
+      id,
+      attendee_email,
+      attendee_name,
+      selected_slot,
+      status,
+      meeting_type,
+      meeting_goal,
+      invite_message,
+      qualification_questions
+    FROM meetings
+    WHERE unique_link = $1`,
     [req.params.uniqueLink]
   );
 
@@ -148,6 +257,10 @@ router.get('/meetings/:uniqueLink', asyncHandler(async (req, res) => {
       attendeeName: meeting.attendee_name,
       status: meeting.status,
       selectedSlot: meeting.selected_slot,
+      meetingType: meeting.meeting_type || 'General meeting',
+      meetingGoal: meeting.meeting_goal || '',
+      inviteMessage: meeting.invite_message || '',
+      qualificationQuestions: asArray(meeting.qualification_questions),
     },
     slots: slotsResult.rows,
   });
@@ -176,6 +289,15 @@ router.post('/meetings/select-slot/:uniqueLink', asyncHandler(async (req, res) =
     if (meeting.status === 'confirmed') {
       throw new HttpError(409, 'Meeting already confirmed');
     }
+    if (meeting.status === 'cancelled') {
+      throw new HttpError(409, 'Meeting is no longer available');
+    }
+
+    const questions = asArray(meeting.qualification_questions);
+    const guestAnswers = normalizeGuestAnswers(req.body.guestAnswers, questions);
+    if (questions.length && guestAnswers.some((item) => !item.answer)) {
+      throw new HttpError(400, 'Please answer each meeting question before choosing a time');
+    }
 
     const slotResult = await client.query('SELECT * FROM slots WHERE id = $1 AND meeting_id = $2', [slotId, meeting.id]);
     selectedSlot = slotResult.rows[0];
@@ -186,8 +308,8 @@ router.post('/meetings/select-slot/:uniqueLink', asyncHandler(async (req, res) =
     await client.query('UPDATE slots SET is_selected = FALSE WHERE meeting_id = $1', [meeting.id]);
     await client.query('UPDATE slots SET is_selected = TRUE WHERE id = $1', [slotId]);
     await client.query(
-      'UPDATE meetings SET status = $1, selected_slot = $2 WHERE id = $3',
-      ['confirmed', selectedSlot.slot_time, meeting.id]
+      'UPDATE meetings SET status = $1, selected_slot = $2, guest_answers = $3::jsonb WHERE id = $4',
+      ['confirmed', selectedSlot.slot_time, JSON.stringify(guestAnswers), meeting.id]
     );
 
     const slotsResult = await client.query('SELECT * FROM slots WHERE meeting_id = $1', [meeting.id]);
