@@ -4,6 +4,8 @@ const { runMigrations } = require('./src/db/migrate');
 
 let migrationPromise;
 
+// Vercel invokes this module directly, so schema initialization must happen here
+// rather than relying only on the long-running local server entrypoint.
 function ensureMigrations() {
   if (!config.autoRunMigrations) return Promise.resolve();
   if (!migrationPromise) {
