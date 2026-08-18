@@ -73,8 +73,8 @@ if (config.nodeEnv !== 'test' && process.env.AUTO_RUN_MIGRATIONS !== 'false') {
 
 app.use('/api', authRoutes);
 app.use('/api', calendarRoutes);
-app.use('/api', meetingRoutes);
 app.use('/api', followUpRoutes);
+app.use('/api', meetingRoutes);
 
 app.use(errorHandler);
 
