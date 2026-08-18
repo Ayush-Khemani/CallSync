@@ -1,0 +1,82 @@
+/* Final restraint pass: let the product UI carry the hero instead of decorative effects. */
+.v6-hero {
+  background: #ffffff;
+}
+
+.v6-hero::before,
+.v6-stage-glow {
+  display: none;
+}
+
+/* FAQ currently has no stable section id in V5, so do not surface a dead nav item. */
+.v6-nav-links a:last-child {
+  display: none;
+}
+
+/* Turn the integration area into a quiet product trust rail rather than another card row. */
+.v6-page > .v5-page .v5-integrations {
+  background: #ffffff;
+  border-bottom: 1px solid #e4eaec;
+  border-top: 1px solid #e4eaec;
+  gap: 26px;
+  max-width: 1224px;
+  min-height: 92px;
+  padding: 14px 4px;
+}
+
+.v6-page > .v5-page .v5-integrations article {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  min-height: 56px;
+  padding: 7px 0;
+}
+
+.v6-page > .v5-page .v5-integrations article + article {
+  border-left: 1px solid #e4eaec;
+  padding-left: 26px;
+}
+
+.v6-page > .v5-page .v5-integrations article strong {
+  color: #344b53;
+  font-size: 11px;
+}
+
+.v6-page > .v5-page .v5-integrations > span {
+  color: #8a969b;
+  letter-spacing: .1em;
+}
+
+.v6-page > .v5-page .v5-integrations > p {
+  color: #718087;
+  max-width: 320px;
+}
+
+/* Slightly calmer hero/product junction. */
+.v6-product-stage {
+  margin-top: 70px;
+}
+
+.v6-app-frame {
+  box-shadow: 0 32px 75px rgba(24,45,53,.14), 0 7px 20px rgba(24,45,53,.055);
+}
+
+@media (max-width: 760px) {
+  .v6-page > .v5-page .v5-integrations {
+    align-items: stretch;
+    gap: 8px;
+    padding: 18px;
+  }
+
+  .v6-page > .v5-page .v5-integrations article,
+  .v6-page > .v5-page .v5-integrations article + article {
+    border: 0;
+    padding: 7px 0;
+  }
+
+  .v6-page > .v5-page .v5-integrations > p {
+    margin-top: 4px;
+    max-width: none;
+    text-align: left;
+  }
+}
