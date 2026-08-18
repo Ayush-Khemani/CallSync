@@ -5,6 +5,7 @@ import './LandingPageV6Polish.css';
 import './PlatformVisualAlignment.css';
 import App from './App';
 import LandingPageV6 from './LandingPageV6';
+import Stage3Product from './Stage3Product';
 import reportWebVitals from './reportWebVitals';
 
 const NAVIGATION_EVENT = 'callsync:navigation';
@@ -34,7 +35,9 @@ function RootApp() {
     };
   }, []);
 
-  return pathname === '/' ? <LandingPageV6 /> : <App />;
+  if (pathname === '/') return <LandingPageV6 />;
+  if (pathname === '/dashboard' || pathname.startsWith('/select-slot/')) return <Stage3Product />;
+  return <App />;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
