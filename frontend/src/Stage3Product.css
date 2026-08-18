@@ -1,0 +1,220 @@
+.stage3-workspace .main { min-width: 0; }
+
+.pipeline-card-type {
+  width: fit-content;
+  margin-bottom: 6px;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stage3-meeting {
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.stage3-meeting .meeting-core {
+  min-width: 0;
+  flex: 1;
+}
+
+.stage3-meeting .meeting-core > header {
+  align-items: flex-start;
+}
+
+.meeting-context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.meeting-brief-card,
+.guest-answer-card,
+.internal-notes-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e2e8e5;
+  border-radius: 14px;
+  background: #fbfcfa;
+}
+
+.context-label {
+  margin-bottom: 10px;
+  color: #64706b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brief-type-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.brief-type-row strong { color: #18231f; }
+.brief-type-row span { color: #74807b; font-size: 12px; }
+.meeting-brief-card small,
+.answer-row small { display: block; margin-bottom: 4px; color: #77817d; font-weight: 700; }
+.meeting-brief-card p,
+.answer-row p { margin: 0 0 12px; color: #26332e; line-height: 1.5; }
+.answer-row:last-child p { margin-bottom: 0; }
+.muted-copy { color: #7a8580 !important; }
+
+.internal-notes-card textarea,
+.private-note-input textarea,
+.guest-question-list textarea {
+  width: 100%;
+  resize: vertical;
+  box-sizing: border-box;
+  border: 1px solid #d8dfdc;
+  border-radius: 10px;
+  background: #fff;
+  color: #17231f;
+  font: inherit;
+}
+
+.internal-notes-card textarea {
+  min-height: 112px;
+  margin-bottom: 10px;
+  padding: 11px 12px;
+}
+
+.persistent-brief-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.qualification-preview {
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+}
+
+.qualification-preview > small {
+  display: block;
+  margin-bottom: 8px;
+  opacity: 0.72;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 800;
+}
+
+.qualification-preview ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.qualification-preview li { margin: 5px 0; }
+
+.private-note-input {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.private-note-input textarea {
+  min-height: 90px;
+  padding: 10px 11px;
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.15);
+  color: inherit;
+}
+
+.persist-hint {
+  opacity: 0.68;
+  line-height: 1.45;
+}
+
+.stage3-booking-screen {
+  padding: 48px 20px;
+}
+
+.stage3-booking {
+  width: min(860px, 100%);
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.booking-invite-message {
+  max-width: 680px;
+  color: #45524d;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.booking-goal {
+  margin: 22px 0;
+  padding: 16px 18px;
+  border: 1px solid #d9e4df;
+  border-radius: 14px;
+  background: #f5faf7;
+}
+
+.booking-goal span {
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.booking-goal p {
+  margin: 6px 0 0;
+  color: #20302a;
+  line-height: 1.55;
+}
+
+.guest-question-section,
+.booking-time-section {
+  margin-top: 28px;
+  padding-top: 26px;
+  border-top: 1px solid #e6ebe8;
+}
+
+.guest-question-section > div:first-child,
+.booking-time-section > div:first-child { margin-bottom: 16px; }
+
+.guest-question-section h2,
+.booking-time-section h2 { margin: 4px 0 6px; }
+
+.guest-question-section p { margin: 0; color: #69746f; }
+
+.guest-question-list {
+  display: grid;
+  gap: 14px;
+}
+
+.guest-question-list label {
+  display: grid;
+  gap: 7px;
+  color: #22302b;
+  font-weight: 700;
+}
+
+.guest-question-list textarea {
+  min-height: 88px;
+  padding: 11px 12px;
+  font-weight: 400;
+}
+
+@media (max-width: 980px) {
+  .meeting-context-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .stage3-meeting { display: block; }
+  .stage3-meeting > .meeting-actions { margin-top: 14px; }
+  .stage3-booking-screen { padding: 20px 12px; }
+  .stage3-booking { padding: 22px 16px; }
+  .brief-type-row { align-items: flex-start; flex-direction: column; }
+}
