@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
-import LandingPageV3 from './LandingPageV3';
+import LandingPageV4 from './LandingPageV4';
 import reportWebVitals from './reportWebVitals';
 
 const NAVIGATION_EVENT = 'callsync:navigation';
@@ -32,7 +32,7 @@ function RootApp() {
     };
   }, []);
 
-  return pathname === '/' ? <LandingPageV3 /> : <App />;
+  return pathname === '/' ? <LandingPageV4 /> : <App />;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -42,7 +42,4 @@ root.render(
   </React.StrictMode>
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
