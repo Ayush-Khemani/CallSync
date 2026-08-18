@@ -1,11 +1,11 @@
 # CallSync Roadmap Audit — 2026-08-18
 
-This audit compares `docs/PRODUCT_ROADMAP.md` against the code currently implemented in CallSync.
+This audit compares `docs/PRODUCT_ROADMAP.md` against the current CallSync codebase.
 
 Status legend:
 
 - **Complete** — the roadmap task is implemented in the current product flow.
-- **Partial** — part of the user-visible behavior exists, but the roadmap requirement is not complete or persistent.
+- **Partial** — useful behavior exists, but the roadmap requirement is not complete.
 - **Not started** — no meaningful implementation exists yet.
 
 ## Executive status
@@ -13,10 +13,10 @@ Status legend:
 | Stage | Status | Summary |
 | --- | --- | --- |
 | Stage 1 — Meeting Pipeline Foundation | **Complete** | Pipeline/status model, follow-up risk, actions and empty states are implemented. |
-| Stage 2 — Assisted Meeting Creation | **Complete / local heuristic** | Intent-first creation and four production templates are implemented, but the assistant is deterministic frontend logic rather than a real AI endpoint. |
-| Stage 3 — Persistent Meeting Briefs | **Not started** | Brief data is generated in the frontend but is not stored in the database or returned with meetings. Guest answers are not collected. |
-| Stage 4 — Follow-Up Workflow | **Partial** | Stale pending invites are surfaced through computed risk, but follow-up state, timestamps, messages, reminders and mark-followed-up actions are missing. |
-| Stage 5 — Pre-Call Brief & Outcome Tracking | **Not started** | No persistent pre-call brief or post-call outcome model exists. |
+| Stage 2 — Assisted Meeting Creation | **Complete / local heuristic** | Intent-first creation and four production templates are implemented; generation is deterministic frontend logic rather than a real AI endpoint. |
+| Stage 3 — Persistent Meeting Briefs | **Complete** | Meeting brief data is persisted, guest questions are shown during booking, guest answers are stored, and host notes/context are available on the dashboard. |
+| Stage 4 — Follow-Up Workflow | **Partial** | Stale pending invites are surfaced through computed risk, but persistent follow-up state, timestamps, messages, reminders and mark-followed-up actions are missing. |
+| Stage 5 — Pre-Call Brief & Outcome Tracking | **Not started** | Persistent meeting context now exists, but there is no dedicated pre-call view or post-call outcome model yet. |
 | Stage 6 — AI & Integrations | **Partial infrastructure** | Google/Outlook calendar connectivity, conflict-aware availability and SendGrid notifications exist. Real AI, connected mailbox sending, ranking/explanations, analytics, billing readiness and observability remain. |
 
 ---
@@ -28,9 +28,9 @@ Status legend:
 | Roadmap task | Status | Current implementation |
 | --- | --- | --- |
 | Rename the dashboard concept from simple meetings to a meeting pipeline | **Complete** | Dashboard navigation uses **Pipeline**, and the main panel is explicitly a **Meeting pipeline**. |
-| Group meetings by status: needs follow-up, link sent, booked, closed | **Complete** | `getMeetingPipelineStages()` produces `followUp`, `pending`, `confirmed`, and `cancelled` groups. |
+| Group meetings by status: needs follow-up, link sent, booked, closed | **Complete** | `getMeetingPipelineStages()` produces follow-up, pending, confirmed/booked and cancelled/closed groups. |
 | Surface follow-up risk for pending invites | **Complete for current stage** | `getFollowUpRisk()` derives low/medium/high risk from pending status and age. |
-| Keep copy/open/cancel actions visible | **Complete** | Meeting cards and detailed meeting rows expose booking-page, copy-link and cancel actions. |
+| Keep copy/open/cancel actions visible | **Complete** | Pipeline/detail views expose booking-page, copy-link and cancel actions. |
 | Add useful empty states that explain what happens next | **Complete** | Pipeline-stage and all-pipeline empty states explain the next expected action. |
 
 ### Acceptance check
@@ -60,7 +60,7 @@ Status legend:
 
 ### Important limitation
 
-The assistant is **not AI-backed yet**. It is a deterministic keyword/template system in the frontend. That is acceptable for Stage 2, but Stage 6 still requires replacing or augmenting this with a real generation endpoint.
+The assistant is **not AI-backed yet**. It remains a deterministic keyword/template system in the frontend. Stage 6 still requires a real generation endpoint.
 
 **Stage 2 result: Functionally complete.**
 
@@ -72,42 +72,27 @@ The assistant is **not AI-backed yet**. It is a deterministic keyword/template s
 
 | Roadmap task | Status | Current implementation |
 | --- | --- | --- |
-| Add meeting fields for type, goal, invite message, qualification questions and internal notes | **Not started** | The current `meetings` table only stores user, attendee, unique link, selected slot, status and timestamps. |
-| Store guest answers during booking | **Not started** | Public booking currently sends only the chosen slot ID. |
-| Show meeting brief on the host dashboard | **Not started** | Brief exists only in Create state and disappears after creation. |
-| Show guest-facing questions on the public booking page | **Not started** | Public booking only displays approved slots/status. |
+| Add meeting fields for type, goal, invite message, qualification questions and internal notes | **Complete** | Migration `002_persistent_meeting_briefs.sql` adds `meeting_type`, `meeting_goal`, `invite_message`, `qualification_questions`, `guest_answers`, and `internal_notes`. |
+| Store guest answers during booking | **Complete** | Slot confirmation accepts qualification answers and persists them atomically with the booked slot. |
+| Show meeting brief on the host dashboard | **Complete** | Detailed meeting views show type, goal, invite message, guest answers and private host notes. |
+| Show guest-facing questions on the public booking page | **Complete** | The public booking flow renders the stored qualification questions and requires answers before confirmation when questions exist. |
+
+### Additional Stage 3 implementation
+
+- `POST /api/meetings/create` persists the generated brief with the meeting.
+- `GET /api/meetings` returns the brief, answers and internal notes to the authenticated host.
+- `GET /api/meetings/:uniqueLink` exposes only guest-safe brief fields and qualification questions.
+- `PATCH /api/meetings/:id/notes` saves host-only private notes.
+- Request emails include the stored meeting type/invite copy.
+- Existing meetings remain backward-compatible and render without qualification context.
+- Vercel serverless now runs ordered idempotent SQL migrations on first request when `AUTO_RUN_MIGRATIONS` is enabled.
 
 ### Acceptance check
 
-- **Every booked meeting has enough context for host preparation:** no.
-- **Booking page collects qualification data:** no.
+- **Every newly booked meeting can carry enough context for host preparation:** yes.
+- **Booking page collects useful qualification data:** yes.
 
-**Stage 3 result: Not started and should be the next product-development milestone.**
-
-### Recommended Stage 3 data model
-
-Add a migration rather than overloading the existing frontend state.
-
-Suggested `meetings` fields:
-
-- `meeting_type TEXT`
-- `goal TEXT`
-- `invite_message TEXT`
-- `qualification_questions JSONB NOT NULL DEFAULT '[]'`
-- `guest_answers JSONB NOT NULL DEFAULT '{}'`
-- `internal_notes TEXT`
-- `updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`
-
-For the current lightweight product, JSONB is sufficient for questions/answers and avoids premature table complexity. A separate normalized answer table can be introduced later if analytics require question-level querying.
-
-### Recommended Stage 3 API work
-
-1. Extend `POST /api/meetings/create` to accept and persist the meeting brief.
-2. Return brief fields from authenticated meeting-list/detail endpoints.
-3. Return guest-facing questions from `GET /api/meetings/:uniqueLink`.
-4. Extend slot selection/booking to accept answers and persist them atomically with confirmation.
-5. Update the host pipeline/detail view to show goal, questions/answers and internal notes.
-6. Update the public booking page to collect answers before confirmation.
+**Stage 3 result: Complete.**
 
 ---
 
@@ -118,26 +103,26 @@ For the current lightweight product, JSONB is sufficient for questions/answers a
 | Roadmap task | Status | Current implementation |
 | --- | --- | --- |
 | Add follow-up status and timestamps | **Not started** | Follow-up need is computed from `created_at`; no persistent follow-up state/timestamp exists. |
-| Generate copyable follow-up messages | **Not started** | Risk detail gives advice but there is no reusable follow-up message. |
+| Generate copyable follow-up messages | **Not started** | Risk detail gives advice but there is no reusable contextual follow-up message. |
 | Add "mark followed up" action | **Not started** | No endpoint/action exists. |
 | Add reminder rules for stale pending invites | **Partial** | UI risk thresholds surface stale invites, but there is no reminder record, schedule or notification workflow. |
 | Later: send follow-ups through connected Gmail/Outlook | **Not started** | Current outbound mail is SendGrid for meeting request/confirmation, not the user's connected mailbox. |
 
 ### Acceptance check
 
-- **Pending invites do not silently sit in the system:** partially; they surface in the UI when the host opens CallSync.
-- **Host knows exactly who needs a nudge and what to say:** who needs attention is implemented; reusable message/action is not.
+- **Pending invites do not silently sit in the system:** partially; they surface when the host opens CallSync.
+- **Host knows exactly who needs a nudge and what to say:** the first half exists; reusable follow-up copy/action does not.
 
-**Stage 4 result: Partial. Implement after Stage 3.**
+**Stage 4 result: Partial and now the next product milestone.**
 
-### Recommended Stage 4 fields
+### Recommended Stage 4 model
 
 - `last_followed_up_at TIMESTAMP`
 - `follow_up_count INT NOT NULL DEFAULT 0`
 - `next_follow_up_at TIMESTAMP`
-- optionally `follow_up_state VARCHAR(...)`
+- optional explicit follow-up state if needed by UI/automation
 
-The existing computed risk can remain as a presentation layer, but it should incorporate the last follow-up timestamp rather than only meeting creation time.
+The existing risk calculation should then use the most recent follow-up timestamp rather than only meeting creation time.
 
 ---
 
@@ -147,21 +132,17 @@ The existing computed risk can remain as a presentation layer, but it should inc
 
 | Roadmap task | Status | Current implementation |
 | --- | --- | --- |
-| Add pre-call brief view for upcoming booked meetings | **Not started** | Booked meetings are visible, but no preparation view exists. |
-| Include guest answers, meeting goal, suggested agenda and opening prompt | **Not started** | Required persistent inputs do not yet exist. |
+| Add pre-call brief view for upcoming booked meetings | **Not started** | Booked meetings now carry durable context, but there is no dedicated preparation view. |
+| Include guest answers, meeting goal, suggested agenda and opening prompt | **Partial prerequisite complete** | Guest answers and meeting goal now exist; suggested agenda/opening prompt are not generated. |
 | Add post-call outcome fields: happened, useful, next step, follow-up date | **Not started** | No outcome model exists. |
 | Add dashboard filters for next actions | **Not started** | Current grouping is lifecycle-status based rather than post-call next-action based. |
 
 ### Acceptance check
 
-- **Hosts enter calls prepared:** not yet supported persistently.
+- **Hosts enter calls prepared:** context is available, but there is no dedicated prep experience yet.
 - **Meetings produce trackable outcomes:** not yet supported.
 
-**Stage 5 result: Not started.**
-
-### Dependency note
-
-Stage 5 should **not** be built before Stage 3. Guest answers and meeting goals need to be durable before a useful pre-call brief can exist.
+**Stage 5 result: Not started as a milestone, with Stage 3 prerequisites now available.**
 
 ---
 
@@ -171,11 +152,11 @@ Stage 5 should **not** be built before Stage 3. Guest answers and meeting goals 
 
 | Roadmap task | Status | Current implementation |
 | --- | --- | --- |
-| Add real AI generation endpoint for meeting brief creation | **Not started** | Current assistant is frontend keyword/template logic; no OpenAI/LLM endpoint exists. |
+| Add real AI generation endpoint for meeting brief creation | **Not started** | Current assistant is frontend keyword/template logic; no LLM endpoint exists. |
 | Connect Gmail/Outlook sending for invites and follow-ups | **Not started** | Google/Outlook **calendar** OAuth exists. Email notifications currently use SendGrid. |
 | Add calendar conflict explanations and smarter slot ranking | **Partial** | Google + Outlook events are fetched and conflicting/buffered slots are excluded. There is no explanation layer or ranking model. |
-| Add analytics: booking rate, follow-up rate, meeting outcome rate | **Not started** | No analytics implementation was found. |
-| Add observability, billing readiness and security review | **Not started as a roadmap milestone** | Basic auth/error handling/tests exist, but no evidence of the requested production observability/billing/security-review layer was found. |
+| Add analytics: booking rate, follow-up rate, meeting outcome rate | **Not started** | No analytics implementation exists. |
+| Add observability, billing readiness and security review | **Not started as a roadmap milestone** | Basic auth/error handling/tests exist, but the requested production maturity layer is not complete. |
 
 ### Existing useful infrastructure
 
@@ -185,47 +166,32 @@ Stage 5 should **not** be built before Stage 3. Guest answers and meeting goals 
 - Duration, interval, timezone and buffer-aware slot generation.
 - Calendar event creation/deletion around tentative slots.
 - SendGrid meeting request and confirmation notifications.
+- Durable meeting context from Stage 3.
 
-These are strong Stage 6 prerequisites, but they do not complete Stage 6.
+**Stage 6 result: Partial infrastructure.**
 
 ---
 
 # Recommended build order from here
 
-## Priority 1 — Stage 3: persist the meeting brief end-to-end
+## Priority 1 — Stage 4: persistent follow-up workflow
 
-This is the highest-leverage missing layer. The product currently promises preparation/context, but that context disappears after creation. Fixing Stage 3 makes the existing assistant and landing-page positioning materially real.
+1. Add persistent follow-up timestamps/count/next-action time.
+2. Generate a copyable follow-up message from the stored meeting context.
+3. Add **Mark followed up**.
+4. Recalculate follow-up risk from the last follow-up rather than only creation time.
+5. Add reminder rules/notifications for stale requests.
+6. Later, move sending into connected Gmail/Outlook mailboxes.
 
-Build order:
+## Priority 2 — Stage 5: preparation + outcomes
 
-1. Database migration for brief/answers/notes.
-2. Create-meeting API persists brief.
-3. Authenticated meeting APIs return brief.
-4. Public booking API returns questions.
-5. Booking confirmation persists guest answers.
-6. Dashboard meeting detail/prep card displays brief + answers.
-7. Internal notes editing.
+1. Add upcoming-booked/pre-call view using stored guest answers and meeting goal.
+2. Add suggested agenda/opening prompt.
+3. Add outcome capture after the meeting.
+4. Add next-step and follow-up-date fields.
+5. Add next-action dashboard filtering.
 
-## Priority 2 — Stage 4: persistent follow-up workflow
-
-Once meetings have durable context:
-
-1. Follow-up timestamps/state.
-2. Copyable follow-up message generated from meeting context.
-3. Mark-followed-up action.
-4. Recalculate next attention time from last follow-up.
-5. Reminder job/notification rules.
-6. Only later: Gmail/Outlook mailbox sending.
-
-## Priority 3 — Stage 5: preparation + outcomes
-
-1. Upcoming-booked/pre-call view.
-2. Suggested agenda/opening prompt using stored context.
-3. Outcome capture after the meeting.
-4. Next-step/follow-up-date pipeline.
-5. Next-action dashboard filtering.
-
-## Priority 4 — Stage 6: intelligence and production maturity
+## Priority 3 — Stage 6: intelligence and production maturity
 
 1. Real AI brief/follow-up/pre-call generation endpoint.
 2. Smarter slot ranking + explanations.
@@ -233,13 +199,13 @@ Once meetings have durable context:
 4. Funnel/outcome analytics.
 5. Observability and alerting.
 6. Security review/token-storage hardening.
-7. Billing readiness only after the paid product boundary is defined.
+7. Billing readiness after the paid product boundary is defined.
 
 ---
 
 # What we should *not* build next
 
-To keep CallSync aligned with its own roadmap, avoid spending the next iteration on:
+To keep CallSync aligned with its roadmap, avoid spending the next iteration on:
 
 - more landing-page sections,
 - generic AI chat,
@@ -248,6 +214,4 @@ To keep CallSync aligned with its own roadmap, avoid spending the next iteration
 - paid-plan plumbing,
 - broad CRM features.
 
-The next product milestone should be **Stage 3: persistent meeting briefs and guest qualification answers**.
-
-That closes the largest gap between the current product and the promise: **booked, prepared, and followed-up meetings**.
+The next milestone is **Stage 4: make follow-up a persistent workflow rather than a visual risk signal**.
