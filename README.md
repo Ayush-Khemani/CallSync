@@ -14,6 +14,9 @@ See [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md) for the staged production
 - Availability lookup across connected calendars
 - Meeting request creation
 - Assisted meeting setup with intent-based templates
+- Persistent meeting briefs with type, goal, invite copy, qualification questions, and private host notes
+- Guest qualification answers stored during public booking
+- Meeting brief and guest context visible on the host dashboard
 - Meeting pipeline dashboard
 - Public booking link
 - Slot selection and confirmation
@@ -33,6 +36,7 @@ CallSync/
   Backend/
     migrations/
       001_initial_schema.sql
+      002_persistent_meeting_briefs.sql
     src/
       config/
       db/
@@ -55,10 +59,10 @@ The backend has been split away from the original single-file prototype:
 
 - `src/app.js` configures Express, CORS, JSON parsing, routes, and error handling.
 - `src/server.js` runs migrations and starts the local/long-running server.
-- `index.js` exports the Express app for Vercel's Node backend runtime.
+- `index.js` exports the Vercel handler and can run idempotent migrations on the first serverless request.
 - `src/config/env.js` centralizes environment configuration.
 - `src/db/pool.js` owns Postgres connection pooling.
-- `src/db/migrate.js` loads SQL migrations.
+- `src/db/migrate.js` loads all SQL migrations in filename order.
 - `src/routes/*` owns HTTP endpoints.
 - `src/services/*` owns calendar, email, and availability logic.
 - `src/utils/tokenCrypto.js` encrypts calendar access tokens when `TOKEN_ENCRYPTION_KEY` is configured.
@@ -137,7 +141,7 @@ Supabase:
 Backend on Vercel:
 
 - Create a Vercel project named `callsync-backend` with `Backend` as the project root.
-- Use Vercel's Node backend support; `Backend/index.js` exports the Express app.
+- Use Vercel's Node backend support; `Backend/index.js` exports the request handler.
 - Set production environment variables in Vercel: `DATABASE_URL`, `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `FRONTEND_URL`, `FRONTEND_URLS`, `SENDGRID_API_KEY`, `EMAIL_FROM`, Google OAuth credentials, and Outlook OAuth credentials.
 - For multiple frontend deployments, set `FRONTEND_URLS` to a comma-separated list of allowed origins, such as `https://call-sync-livid.vercel.app,https://call-sync-d5py7xx4o-ayush-khemanis-projects.vercel.app`.
 - For temporary Vercel preview deployments, `FRONTEND_ORIGIN_REGEX` can allow matching frontend URLs, such as `^https://call-sync-[a-z0-9-]+\\.vercel\\.app$`. Prefer exact `FRONTEND_URLS` for stable production domains.
@@ -179,14 +183,13 @@ Frontend:
 
 ## Production Gaps Still To Close
 
-- Persist meeting briefs, invite copy, qualification questions, and internal notes.
-- Collect guest answers on the public booking page.
 - Add follow-up status, reminders, and "mark followed up" actions.
+- Add pre-call brief views for upcoming booked meetings.
 - Add post-call outcomes and next-step tracking.
 - Add rescheduling flows.
 - Add link expiry.
 - Add request validation middleware.
-- Expand backend integration tests around calendar refresh and booking edge cases.
+- Expand backend integration tests around calendar refresh, persistent meeting context, and booking edge cases.
 - Add observability through Sentry or similar.
 - Add real AI generation once the workflow data model is reliable.
 
