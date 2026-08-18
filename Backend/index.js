@@ -1,9 +1,11 @@
 const app = require('./src/app');
+const config = require('./src/config/env');
 const { runMigrations } = require('./src/db/migrate');
 
 let migrationPromise;
 
 function ensureMigrations() {
+  if (!config.autoRunMigrations) return Promise.resolve();
   if (!migrationPromise) {
     migrationPromise = runMigrations().catch((error) => {
       migrationPromise = null;
