@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import './LandingPageV6Polish.css';
+import './PlatformVisualAlignment.css';
 import App from './App';
 import LandingPageV6 from './LandingPageV6';
 import reportWebVitals from './reportWebVitals';
