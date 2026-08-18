@@ -5,19 +5,33 @@ if (config.sendgridApiKey) {
   sendgrid.setApiKey(config.sendgridApiKey);
 }
 
-async function sendMeetingRequest({ attendeeEmail, attendeeName, slots, uniqueLink }) {
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+async function sendMeetingRequest({ attendeeEmail, attendeeName, slots, uniqueLink, meetingType, inviteMessage }) {
   if (!config.sendgridApiKey) {
     return;
   }
 
+  const safeName = escapeHtml(attendeeName);
+  const safeType = escapeHtml(meetingType || 'Meeting');
+  const safeMessage = escapeHtml(inviteMessage || '').replaceAll('\n', '<br />');
+
   await sendgrid.send({
     from: config.emailFrom,
     to: attendeeEmail,
-    subject: 'Meeting request from CallSync',
+    subject: `${safeType} request from CallSync`,
     html: `
-      <p>Hi ${attendeeName},</p>
-      <p>You have been offered ${slots.length} time slot${slots.length === 1 ? '' : 's'} for a meeting.</p>
-      <p><a href="${config.frontendUrl}/select-slot/${uniqueLink}">Choose a time</a></p>
+      <p>Hi ${safeName},</p>
+      ${safeMessage ? `<p>${safeMessage}</p>` : ''}
+      <p>You have been offered ${slots.length} time slot${slots.length === 1 ? '' : 's'}.</p>
+      <p><a href="${config.frontendUrl}/select-slot/${uniqueLink}">Choose a time and share context</a></p>
     `,
   });
 }
@@ -31,14 +45,14 @@ async function sendMeetingConfirmation({ attendeeEmail, hostEmail, attendeeName,
     from: config.emailFrom,
     to: attendeeEmail,
     subject: 'Meeting confirmed',
-    html: `<p>Your meeting has been confirmed for ${selectedSlot}.</p>`,
+    html: `<p>Your meeting has been confirmed for ${escapeHtml(selectedSlot)}.</p>`,
   });
 
   await sendgrid.send({
     from: config.emailFrom,
     to: hostEmail,
     subject: 'Meeting confirmed',
-    html: `<p>${attendeeName} selected ${selectedSlot}.</p>`,
+    html: `<p>${escapeHtml(attendeeName)} selected ${escapeHtml(selectedSlot)}.</p>`,
   });
 }
 
