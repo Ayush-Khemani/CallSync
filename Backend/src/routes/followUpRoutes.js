@@ -16,6 +16,15 @@ function parseOptionalDate(value) {
 }
 
 router.get('/meetings/follow-up-state', authMiddleware, asyncHandler(async (req, res) => {
+  await pool.query(
+    `UPDATE meetings
+     SET next_follow_up_at = created_at + INTERVAL '2 days'
+     WHERE user_id = $1
+       AND status = 'pending'
+       AND next_follow_up_at IS NULL`,
+    [req.userId]
+  );
+
   const result = await pool.query(
     `SELECT
       id,
