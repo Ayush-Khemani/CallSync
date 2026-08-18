@@ -1,0 +1,96 @@
+.followup-workflow-card {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgba(20, 36, 38, 0.12);
+  border-radius: 16px;
+  background: #f8fbfa;
+}
+
+.followup-workflow-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.followup-workflow-head > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.followup-workflow-head small,
+.followup-copy-label {
+  color: #6b7775;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.followup-workflow-head strong {
+  color: #142426;
+  font-size: 15px;
+}
+
+.followup-workflow-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.followup-workflow-meta span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #edf3f1;
+  color: #53615f;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.followup-copy-box {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(20, 36, 38, 0.1);
+}
+
+.followup-copy-box p {
+  margin: 7px 0 0;
+  color: #33413f;
+  line-height: 1.55;
+}
+
+.followup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.followup-inline-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #53706a;
+  font-size: 12px;
+}
+
+.followup-inline-state::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2d8f78;
+}
+
+@media (max-width: 720px) {
+  .followup-workflow-head {
+    flex-direction: column;
+  }
+
+  .followup-actions .btn {
+    width: 100%;
+  }
+}
