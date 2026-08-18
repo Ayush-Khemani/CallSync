@@ -295,11 +295,11 @@ function LandingPage() {
         </div>
         <div className="hero-copy">
           <p className="eyebrow">Scheduling links with an operator's edge</p>
-          <h1>Send fewer links. Close the loop on every meeting.</h1>
+          <h1>Send fewer links. <span className="accent">Close the loop</span> on every meeting.</h1>
           <p>CallSync gives hosts a clean way to design availability, send a focused booking link, and track what happened after the invite leaves their hands.</p>
           <div className="hero-actions">
             <Link className="btn primary" to={hasToken ? '/dashboard' : '/login'}>{hasToken ? 'Open dashboard' : 'Create your first link'}</Link>
-            <a className="btn light" href="#product">View product tour</a>
+            <a className="btn light" href="#product">View product tour →</a>
           </div>
         </div>
       </section>
@@ -345,6 +345,13 @@ function LandingPage() {
           <li><b>Confirm</b><span>Let the guest select once, then keep the host dashboard up to date.</span></li>
         </ol>
       </section>
+
+      <footer className="site-footer">
+        <div className="footer-inner">
+          <Brand />
+          <small>CallSync — turn interested replies into booked, prepared, and followed-up meetings.</small>
+        </div>
+      </footer>
     </main>
   );
 }
