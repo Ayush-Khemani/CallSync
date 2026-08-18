@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const calendarRoutes = require('./routes/calendarRoutes');
 const meetingRoutes = require('./routes/meetingRoutes');
 const followUpRoutes = require('./routes/followUpRoutes');
+const outcomeRoutes = require('./routes/outcomeRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const rateLimiter = require('./middleware/rateLimiter');
 const securityHeaders = require('./middleware/securityHeaders');
@@ -74,6 +75,7 @@ if (config.nodeEnv !== 'test' && process.env.AUTO_RUN_MIGRATIONS !== 'false') {
 app.use('/api', authRoutes);
 app.use('/api', calendarRoutes);
 app.use('/api', followUpRoutes);
+app.use('/api', outcomeRoutes);
 app.use('/api', meetingRoutes);
 
 app.use(errorHandler);
