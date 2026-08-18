@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
-import LandingPageV2 from './LandingPageV2';
+import LandingPageV3 from './LandingPageV3';
 import reportWebVitals from './reportWebVitals';
 
 const NAVIGATION_EVENT = 'callsync:navigation';
@@ -32,7 +32,7 @@ function RootApp() {
     };
   }, []);
 
-  return pathname === '/' ? <LandingPageV2 /> : <App />;
+  return pathname === '/' ? <LandingPageV3 /> : <App />;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
