@@ -169,12 +169,12 @@ function LandingPageV5() {
         <div className="v5-hero-copy" data-v4-reveal>
           <span className="v4-pill"><i/> Early access · Free during beta</span>
           <h1>From “happy to chat” to a meeting you can actually manage.</h1>
-          <p>CallSync turns high-value meeting requests into curated availability, visible status and useful context—without making the guest create an account.</p>
+          <p>CallSync turns high-value meeting requests into curated availability, visible status and useful context from the first invite to preparation.</p>
           <div className="v4-hero-actions"><a className="v4-btn primary" href={appHref}>{hasToken ? 'Open your pipeline' : 'Start free'}</a><a className="v4-btn ghost" href="#product">See it work <span>↓</span></a></div>
         </div>
         <div className="v5-hero-product" data-v4-reveal>
           <PipelineCard active={activeMeeting} setActive={setActiveMeeting} />
-          <div className="v5-human-chip"><img src={HUMAN_CALL_PHOTO} alt="Professional on a video call"/><span><b>Built around the conversation</b><small>not just the calendar event</small></span></div>
+          <div className="v5-human-chip"><img src={HUMAN_CALL_PHOTO} alt="Professional on a video call"/><span><b>Daniel Ortiz · Customer discovery</b><small>Tue · 14:30 · 30 min</small></span></div>
         </div>
       </section>
 
@@ -217,7 +217,7 @@ function LandingPageV5() {
       </section>
 
       <section className="v4-capabilities v5-capabilities">
-        <div className="v4-section-head" data-v4-reveal><div><span className="v4-overline">What CallSync does</span><h2>Six distinct jobs. No filler.</h2></div><p>Each capability solves a different piece of the host workflow.</p></div>
+        <div className="v4-section-head" data-v4-reveal><div><span className="v4-overline">What CallSync does</span><h2>Six capabilities, one workspace.</h2></div><p>Each capability solves a different piece of the host workflow.</p></div>
         <div className="v4-capability-grid">
           {capabilities.map((item, index) => (
             <article key={item.title} className={`v4-capability ${item.accent}`} data-v4-reveal style={{ '--delay': `${index * 55}ms` }}>
@@ -276,7 +276,7 @@ function LandingPageV5() {
       </section>
 
       <section className="v4-faq v5-faq">
-        <div className="v4-faq-title" data-v4-reveal><span className="v4-overline">FAQ</span><h2>Four useful answers. That’s enough.</h2></div>
+        <div className="v4-faq-title" data-v4-reveal><span className="v4-overline">FAQ</span><h2>Before your first booking.</h2></div>
         <div className="v4-faq-list" data-v4-reveal>
           {faqs.map(([question, answer], index) => (
             <article key={question} className={openFaq === index ? 'open' : ''}>
