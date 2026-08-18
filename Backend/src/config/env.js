@@ -42,6 +42,7 @@ module.exports = {
   rateLimitMax: Number(optionalEnv('RATE_LIMIT_MAX', '100')),
   databaseUrl,
   databaseUrlSource,
+  autoRunMigrations: optionalEnv('AUTO_RUN_MIGRATIONS', 'true').toLowerCase() !== 'false',
   jwtSecret,
   getJwtSecret,
   tokenEncryptionKey: optionalEnv('TOKEN_ENCRYPTION_KEY', ''),
