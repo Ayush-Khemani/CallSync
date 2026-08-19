@@ -185,7 +185,8 @@ test('host can cancel a meeting and public link reflects cancelled status', asyn
 
   const cancelMeeting = await request('POST', `/api/meetings/cancel/${createMeeting.body.uniqueLink}`, {}, authHeaders);
   assert.equal(cancelMeeting.statusCode, 200);
-  assert.deepEqual(cancelMeeting.body, { message: 'Meeting cancelled' });
+  assert.equal(cancelMeeting.body.message, 'Meeting cancelled');
+  assert.equal(cancelMeeting.body.delivery?.calendarCleanupComplete, true);
 
   const publicMeeting = await request('GET', `/api/meetings/${createMeeting.body.uniqueLink}`);
   assert.equal(publicMeeting.statusCode, 200);
