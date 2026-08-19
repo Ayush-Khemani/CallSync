@@ -17,6 +17,10 @@ import './Stage3Product.css';
 import './Stage4FollowUp.css';
 
 const API_URL = (process.env.REACT_APP_API_URL || 'https://callsync-backend.vercel.app').replace(/\/$/, '');
+const EMPTY_INTEGRATIONS = {
+  google: { calendarConnected: false, mailSendEnabled: false },
+  outlook: { calendarConnected: false, mailSendEnabled: false },
+};
 
 function authHeaders() {
   const token = localStorage.getItem('token');
@@ -57,8 +61,10 @@ function Dashboard() {
       client_id: process.env[isGoogle ? 'REACT_APP_GOOGLE_CLIENT_ID' : 'REACT_APP_OUTLOOK_CLIENT_ID'],
       redirect_uri: `${window.location.origin}/auth/${provider}`,
       response_type: 'code',
-      scope: isGoogle ? 'https://www.googleapis.com/auth/calendar' : 'Calendars.ReadWrite offline_access',
-      ...(isGoogle ? { access_type: 'offline', prompt: 'consent' } : {}),
+      scope: isGoogle
+        ? 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send'
+        : 'Calendars.ReadWrite Mail.Send offline_access',
+      ...(isGoogle ? { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' } : { prompt: 'consent' }),
     });
     window.location.href = isGoogle
       ? `https://accounts.google.com/o/oauth2/v2/auth?${params}`
@@ -77,7 +83,7 @@ function Dashboard() {
           <div><p className="eyebrow">Host workspace</p><h1>Manage your meeting pipeline from one desk.</h1></div>
           <button className="btn primary" onClick={() => setTab('create')}>New request</button>
         </header>
-        {tab === 'meetings' && <Meetings onCreate={() => setTab('create')} />}
+        {tab === 'meetings' && <Meetings onCreate={() => setTab('create')} onOpenCalendars={() => setTab('calendars')} />}
         {tab === 'create' && <CreateMeeting onCreated={() => setTab('meetings')} />}
         {tab === 'calendars' && <Calendars onGoogle={() => oauth('google')} onOutlook={() => oauth('outlook')} />}
       </section>
@@ -85,8 +91,9 @@ function Dashboard() {
   );
 }
 
-function Meetings({ onCreate }) {
+function Meetings({ onCreate, onOpenCalendars }) {
   const [meetings, setMeetings] = useState([]);
+  const [integrations, setIntegrations] = useState(EMPTY_INTEGRATIONS);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [expandedStage, setExpandedStage] = useState('followUp');
@@ -95,6 +102,7 @@ function Meetings({ onCreate }) {
   const [savingNoteId, setSavingNoteId] = useState(null);
   const [recordingFollowUpId, setRecordingFollowUpId] = useState(null);
   const [generatingFollowUpId, setGeneratingFollowUpId] = useState(null);
+  const [sendingFollowUpKey, setSendingFollowUpKey] = useState('');
 
   const stats = useMemo(() => ({
     total: meetings.length,
@@ -108,16 +116,18 @@ function Meetings({ onCreate }) {
     setLoading(true);
     setMessage('');
     try {
-      const [meetingsResponse, followUpResponse] = await Promise.all([
+      const [meetingsResponse, followUpResponse, integrationsResponse] = await Promise.all([
         axios.get(`${API_URL}/api/meetings`, { headers: authHeaders() }),
         axios.get(`${API_URL}/api/meetings/follow-up-state`, { headers: authHeaders() }),
+        axios.get(`${API_URL}/api/integrations/status`, { headers: authHeaders() }).catch(() => ({ data: EMPTY_INTEGRATIONS })),
       ]);
       const followUpById = new Map((followUpResponse.data.followUps || []).map((item) => [item.meetingId, item]));
       const nextMeetings = (meetingsResponse.data.meetings || []).map((meeting) => ({
         ...meeting,
-        ...(followUpById.get(meeting.id) || { followUpCount: 0, lastFollowedUpAt: null, nextFollowUpAt: null }),
+        ...(followUpById.get(meeting.id) || { followUpCount: 0, lastFollowedUpAt: null, nextFollowUpAt: null, lastFollowUpProvider: null }),
       }));
       setMeetings(nextMeetings);
+      setIntegrations(integrationsResponse.data || EMPTY_INTEGRATIONS);
       setNotesDrafts(Object.fromEntries(nextMeetings.map((meeting) => [meeting.id, meeting.internalNotes || ''])));
       setFollowUpDrafts(Object.fromEntries(nextMeetings.filter((meeting) => meeting.status === 'pending').map((meeting) => [meeting.id, buildFollowUpMessage(meeting, `${window.location.origin}/select-slot/${meeting.uniqueLink}`)])));
     } catch (error) {
@@ -165,12 +175,36 @@ function Meetings({ onCreate }) {
         context: { bookingUrl: url(meeting.uniqueLink) },
       }, { headers: authHeaders() });
       setFollowUpDrafts((current) => ({ ...current, [meeting.id]: response.data.output?.message || fallback }));
-      setMessage('Follow-up suggestion refreshed. Edit it before copying if you want.');
+      setMessage('Follow-up suggestion refreshed. Edit it before copying or sending.');
     } catch (error) {
       setFollowUpDrafts((current) => ({ ...current, [meeting.id]: fallback }));
       setMessage('Built-in follow-up suggestion restored because assisted generation was unavailable.');
     } finally {
       setGeneratingFollowUpId(null);
+    }
+  }
+
+  async function sendFollowUp(meeting, provider) {
+    const draft = followUpDraft(meeting).trim();
+    if (!draft) {
+      setMessage('Write a follow-up message before sending.');
+      return;
+    }
+    const key = `${meeting.id}:${provider}`;
+    setSendingFollowUpKey(key);
+    setMessage('');
+    try {
+      const response = await axios.post(`${API_URL}/api/meetings/${meeting.id}/send-follow-up`, {
+        provider,
+        message: draft,
+      }, { headers: authHeaders() });
+      const followUp = response.data.followUp;
+      setMeetings((current) => current.map((item) => item.id === meeting.id ? { ...item, ...followUp } : item));
+      setMessage(`Follow-up sent through ${provider === 'google' ? 'Gmail' : 'Outlook'} and recorded in the meeting timeline.`);
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Could not send the follow-up email');
+    } finally {
+      setSendingFollowUpKey('');
     }
   }
 
@@ -235,6 +269,8 @@ function Meetings({ onCreate }) {
     const risk = getFollowUpRisk(meeting);
     const meta = getFollowUpMeta(meeting);
     const draft = followUpDraft(meeting);
+    const canSendGoogle = Boolean(integrations.google?.mailSendEnabled);
+    const canSendOutlook = Boolean(integrations.outlook?.mailSendEnabled);
 
     return (
       <section className="followup-workflow-card">
@@ -248,6 +284,7 @@ function Meetings({ onCreate }) {
         <div className="followup-workflow-meta">
           <span>Last follow-up: {meta.lastLabel}</span>
           <span>Next check: {meta.nextLabel}</span>
+          {meeting.lastFollowUpProvider && <span>Last channel: {meeting.lastFollowUpProvider}</span>}
         </div>
         <label className="followup-copy-box editable-followup-copy">
           <span className="followup-copy-label">Suggested nudge · editable</span>
@@ -256,10 +293,11 @@ function Meetings({ onCreate }) {
         <div className="followup-actions">
           <button className="btn light small" type="button" onClick={() => generateFollowUp(meeting)} disabled={generatingFollowUpId === meeting.id}>{generatingFollowUpId === meeting.id ? 'Refreshing…' : 'Refresh suggestion'}</button>
           <button className="btn light small" type="button" onClick={() => copyFollowUp(meeting)}>Copy follow-up</button>
-          <button className="btn primary small" type="button" onClick={() => markFollowedUp(meeting)} disabled={recordingFollowUpId === meeting.id}>
-            {recordingFollowUpId === meeting.id ? 'Recording…' : 'Mark followed up'}
-          </button>
+          {canSendGoogle && <button className="btn primary small" type="button" onClick={() => sendFollowUp(meeting, 'google')} disabled={Boolean(sendingFollowUpKey)}>{sendingFollowUpKey === `${meeting.id}:google` ? 'Sending…' : 'Send with Gmail'}</button>}
+          {canSendOutlook && <button className="btn primary small" type="button" onClick={() => sendFollowUp(meeting, 'outlook')} disabled={Boolean(sendingFollowUpKey)}>{sendingFollowUpKey === `${meeting.id}:outlook` ? 'Sending…' : 'Send with Outlook'}</button>}
+          <button className="btn light small" type="button" onClick={() => markFollowedUp(meeting)} disabled={recordingFollowUpId === meeting.id}>{recordingFollowUpId === meeting.id ? 'Recording…' : 'Mark manual follow-up'}</button>
         </div>
+        {!canSendGoogle && !canSendOutlook && <button className="connected-mail-hint" type="button" onClick={onOpenCalendars}>Enable Gmail or Outlook sending in Calendars to send this draft without copy/paste.</button>}
       </section>
     );
   }
@@ -383,10 +421,10 @@ function Meetings({ onCreate }) {
 function Calendars({ onGoogle, onOutlook }) {
   return (
     <section className="panel">
-      <div className="panel-head"><div><h2>Calendar Connections</h2><p>Connect calendar sources so generated slots reflect real availability.</p></div></div>
+      <div className="panel-head"><div><h2>Calendar & mailbox connections</h2><p>Connect only the calendar and send permissions CallSync needs to protect availability and send your edited follow-ups.</p></div></div>
       <div className="integrations">
-        <article className="google"><span>Google Calendar</span><h3>Sync Google availability.</h3><p>Use your primary Google calendar as the source of truth for open slots.</p><button className="btn primary" onClick={onGoogle}>Connect Google</button></article>
-        <article className="outlook"><span>Outlook Calendar</span><h3>Bring Microsoft 365 into the same flow.</h3><p>Coordinate with work calendars while keeping the host workflow unchanged.</p><button className="btn primary" onClick={onOutlook}>Connect Outlook</button></article>
+        <article className="google"><span>Google Calendar + Gmail</span><h3>Sync availability and send follow-ups from Gmail.</h3><p>CallSync requests calendar access plus the narrow Gmail send permission. It does not need inbox-reading access for this workflow.</p><button className="btn primary" onClick={onGoogle}>Connect / enable Gmail sending</button></article>
+        <article className="outlook"><span>Outlook Calendar + Mail</span><h3>Keep Microsoft 365 scheduling and follow-up in one flow.</h3><p>CallSync requests calendar access plus Mail.Send so approved follow-up drafts can be sent from your Outlook mailbox.</p><button className="btn primary" onClick={onOutlook}>Connect / enable Outlook sending</button></article>
       </div>
     </section>
   );
