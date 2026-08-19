@@ -9,6 +9,7 @@ const {
   outlookEventBody,
   normalizeDurationMinutes,
   eventEnd,
+  buildTokenBundle,
 } = _test;
 
 const tests = [];
@@ -82,6 +83,22 @@ test('calendar helpers enforce safe duration bounds and deterministic end times'
   assert.equal(normalizeDurationMinutes(4), 60);
   assert.equal(normalizeDurationMinutes(481), 60);
   assert.equal(eventEnd('2026-09-01T10:00:00.000Z', 15), '2026-09-01T10:15:00.000Z');
+});
+
+test('provider token bundles retain granted scopes when refresh responses omit scope', () => {
+  const initial = buildTokenBundle({
+    access_token: 'first-access',
+    refresh_token: 'refresh-token',
+    expires_in: 3600,
+    scope: 'Calendars.ReadWrite Mail.Send offline_access',
+  });
+  const refreshed = buildTokenBundle({
+    access_token: 'second-access',
+    expires_in: 3600,
+  }, initial.refreshToken, initial.scope);
+
+  assert.equal(refreshed.refreshToken, 'refresh-token');
+  assert.equal(refreshed.scope, 'Calendars.ReadWrite Mail.Send offline_access');
 });
 
 (async () => {
