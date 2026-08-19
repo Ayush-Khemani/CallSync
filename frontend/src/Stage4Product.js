@@ -370,6 +370,7 @@ function CreateMeeting({ onCreated }) {
   const [internalNotes, setInternalNotes] = useState('');
   const [assistantPrompt, setAssistantPrompt] = useState('');
   const [assistantDraft, setAssistantDraft] = useState(null);
+  const [assistantLoading, setAssistantLoading] = useState(false);
   const [slots, setSlots] = useState([]);
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState('');
@@ -386,12 +387,29 @@ function CreateMeeting({ onCreated }) {
     applyDraft(buildMeetingDraftFromPrompt(MEETING_TEMPLATES[key].label));
   }
 
-  function runAssistant() {
-    if (!assistantPrompt.trim()) {
+  async function runAssistant() {
+    const prompt = assistantPrompt.trim();
+    if (!prompt) {
       setMessage('Describe the meeting first, or choose a production template.');
       return;
     }
-    applyDraft(buildMeetingDraftFromPrompt(assistantPrompt));
+
+    const fallbackDraft = buildMeetingDraftFromPrompt(prompt);
+    setAssistantLoading(true);
+    setMessage('Shaping the meeting request…');
+    try {
+      const response = await axios.post(`${API_URL}/api/intelligence/generate`, {
+        kind: 'meeting_brief',
+        context: { prompt },
+      }, { headers: authHeaders() });
+      applyDraft(response.data.output || fallbackDraft);
+      setMessage('Meeting brief ready. Review or edit it, then choose the date and slots.');
+    } catch (error) {
+      applyDraft(fallbackDraft);
+      setMessage('Meeting brief ready. CallSync used its built-in meeting workflow because assisted generation was unavailable.');
+    } finally {
+      setAssistantLoading(false);
+    }
   }
 
   async function fetchSlots() {
@@ -451,7 +469,7 @@ function CreateMeeting({ onCreated }) {
               <button type="button" key={key} onClick={() => applyTemplate(key)}><span>{template.label}</span><small>{template.summary}</small><em>{template.durationMinutes} min / {template.bufferMinutes} min buffer</em></button>
             ))}
           </div>
-          <button type="button" className="btn primary" onClick={runAssistant}>Generate meeting brief</button>
+          <button type="button" className="btn primary" onClick={runAssistant} disabled={assistantLoading}>{assistantLoading ? 'Shaping request…' : 'Generate meeting brief'}</button>
         </div>
         <aside className="persistent-brief-preview">
           <span>{brief.type}</span>

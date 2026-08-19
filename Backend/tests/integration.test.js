@@ -3,6 +3,7 @@ const http = require('node:http');
 
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'integration-test-jwt-secret';
+delete process.env.OPENAI_API_KEY;
 
 if (!process.env.TEST_DATABASE_URL) {
   console.error('TEST_DATABASE_URL is required for integration tests');
@@ -83,6 +84,34 @@ test('registers a user and logs in with persisted credentials', async () => {
   assert.equal(login.body.email, email);
   assert.equal(Number.isInteger(login.body.userId), true);
   assert.equal(typeof login.body.token, 'string');
+});
+
+test('authenticated generation endpoint returns a usable deterministic fallback', async () => {
+  const email = 'generation-host@example.com';
+  const password = 'StrongPass123';
+
+  await request('POST', '/api/auth/register', { email, password });
+  const login = await request('POST', '/api/auth/login', { email, password });
+  const authHeaders = { Authorization: `Bearer ${login.body.token}` };
+
+  const response = await request('POST', '/api/intelligence/generate', {
+    kind: 'meeting_brief',
+    context: {
+      prompt: 'Create a 45 minute recruiting screen with Jamie Smith jamie@example.com in the morning.',
+      now: '2026-08-19T12:00:00.000Z',
+    },
+  }, authHeaders);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.output.brief.type, 'Candidate screen');
+  assert.equal(response.body.output.formPatch.attendeeEmail, 'jamie@example.com');
+  assert.equal(response.body.output.formPatch.attendeeName, 'Jamie Smith');
+  assert.equal(response.body.output.formPatch.durationMinutes, 45);
+  assert.equal(response.body.output.formPatch.workStartHour, 9);
+  assert.equal(response.body.output.formPatch.workEndHour, 12);
+  assert.equal(Array.isArray(response.body.output.brief.questions), true);
+  assert.equal(Object.hasOwn(response.body, 'model'), false);
+  assert.equal(Object.hasOwn(response.body, 'provider'), false);
 });
 
 test('creates a meeting, preserves duration, exposes slots, and confirms one selected slot', async () => {

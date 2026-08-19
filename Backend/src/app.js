@@ -7,6 +7,7 @@ const calendarRoutes = require('./routes/calendarRoutes');
 const meetingRoutes = require('./routes/meetingRoutes');
 const followUpRoutes = require('./routes/followUpRoutes');
 const outcomeRoutes = require('./routes/outcomeRoutes');
+const intelligenceRoutes = require('./routes/intelligenceRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const rateLimiter = require('./middleware/rateLimiter');
 const securityHeaders = require('./middleware/securityHeaders');
@@ -76,6 +77,7 @@ app.use('/api', authRoutes);
 app.use('/api', calendarRoutes);
 app.use('/api', followUpRoutes);
 app.use('/api', outcomeRoutes);
+app.use('/api', intelligenceRoutes);
 app.use('/api', meetingRoutes);
 
 app.use(errorHandler);

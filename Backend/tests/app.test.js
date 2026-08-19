@@ -94,6 +94,16 @@ test('protected meeting creation rejects missing auth token', async () => {
   assert.deepEqual(response.body, { error: 'No token provided' });
 });
 
+test('generation endpoint rejects missing auth token', async () => {
+  const response = await request('POST', '/api/intelligence/generate', {
+    kind: 'meeting_brief',
+    context: { prompt: 'Create a 30 minute investor intro' },
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.body, { error: 'No token provided' });
+});
+
 test('registration validates email and password before database writes', async () => {
   const invalidEmail = await request('POST', '/api/auth/register', {
     email: 'not-an-email',
