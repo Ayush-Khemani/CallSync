@@ -59,6 +59,32 @@ function eventEnd(slotTime, durationMinutes) {
   return new Date(new Date(slotTime).getTime() + normalizeDurationMinutes(durationMinutes) * 60000).toISOString();
 }
 
+function googleEventBody(slotTime, attendeeEmail, options = {}, includeAttendees = false) {
+  const durationMinutes = normalizeDurationMinutes(options.durationMinutes);
+  const summary = options.summary || (attendeeEmail ? `Meeting with ${attendeeEmail}` : 'CallSync meeting hold');
+  return {
+    summary,
+    start: { dateTime: slotTime },
+    end: { dateTime: eventEnd(slotTime, durationMinutes) },
+    ...(attendeeEmail
+      ? { attendees: [{ email: attendeeEmail }] }
+      : includeAttendees ? { attendees: [] } : {}),
+  };
+}
+
+function outlookEventBody(slotTime, attendeeEmail, options = {}, includeAttendees = false) {
+  const durationMinutes = normalizeDurationMinutes(options.durationMinutes);
+  const subject = options.summary || (attendeeEmail ? `Meeting with ${attendeeEmail}` : 'CallSync meeting hold');
+  return {
+    subject,
+    start: { dateTime: new Date(slotTime).toISOString(), timeZone: 'UTC' },
+    end: { dateTime: eventEnd(slotTime, durationMinutes), timeZone: 'UTC' },
+    ...(attendeeEmail
+      ? { attendees: [{ emailAddress: { address: attendeeEmail }, type: 'required' }] }
+      : includeAttendees ? { attendees: [] } : {}),
+  };
+}
+
 async function exchangeGoogleCode(code, redirectUri = config.google.redirectUri) {
   const response = await axios.post('https://oauth2.googleapis.com/token', new URLSearchParams({
     client_id: config.google.clientId,
@@ -182,19 +208,10 @@ async function fetchOutlookEvents(encryptedToken, windowStart, windowEnd, option
 }
 
 async function createGoogleEvent(encryptedToken, slotTime, attendeeEmail, options = {}) {
-  const durationMinutes = normalizeDurationMinutes(options.durationMinutes);
-  const summary = options.summary || (attendeeEmail ? `Meeting with ${attendeeEmail}` : 'CallSync meeting hold');
-  const body = {
-    summary,
-    start: { dateTime: slotTime },
-    end: { dateTime: eventEnd(slotTime, durationMinutes) },
-    ...(attendeeEmail ? { attendees: [{ email: attendeeEmail }] } : {}),
-  };
-
   const response = await requestWithRefresh(encryptedToken, refreshGoogleToken, options.onTokenRefresh, (token) => (
     axios.post(
       'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-      body,
+      googleEventBody(slotTime, attendeeEmail, options),
       {
         headers: { Authorization: `Bearer ${token}` },
         params: { sendUpdates: attendeeEmail ? 'all' : 'none' },
@@ -202,36 +219,54 @@ async function createGoogleEvent(encryptedToken, slotTime, attendeeEmail, option
     )
   ));
 
-  if (!response) {
-    return null;
-  }
-
-  return response.data.id;
+  return response?.data?.id || null;
 }
 
 async function createOutlookEvent(encryptedToken, slotTime, attendeeEmail, options = {}) {
-  const durationMinutes = normalizeDurationMinutes(options.durationMinutes);
-  const subject = options.summary || (attendeeEmail ? `Meeting with ${attendeeEmail}` : 'CallSync meeting hold');
-  const body = {
-    subject,
-    start: { dateTime: new Date(slotTime).toISOString(), timeZone: 'UTC' },
-    end: { dateTime: eventEnd(slotTime, durationMinutes), timeZone: 'UTC' },
-    ...(attendeeEmail ? { attendees: [{ emailAddress: { address: attendeeEmail }, type: 'required' }] } : {}),
-  };
-
   const response = await requestWithRefresh(encryptedToken, refreshOutlookToken, options.onTokenRefresh, (token) => (
     axios.post(
       'https://graph.microsoft.com/v1.0/me/calendar/events',
-      body,
+      outlookEventBody(slotTime, attendeeEmail, options),
       { headers: { Authorization: `Bearer ${token}` } }
     )
   ));
 
-  if (!response) {
+  return response?.data?.id || null;
+}
+
+async function updateGoogleEvent(encryptedToken, eventId, slotTime, attendeeEmail, options = {}) {
+  if (!eventId) {
     return null;
   }
 
-  return response.data.id;
+  const response = await requestWithRefresh(encryptedToken, refreshGoogleToken, options.onTokenRefresh, (token) => (
+    axios.patch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+      googleEventBody(slotTime, attendeeEmail, options, true),
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { sendUpdates: attendeeEmail || options.notifyAttendees ? 'all' : 'none' },
+      }
+    )
+  ));
+
+  return response?.data?.id || eventId;
+}
+
+async function updateOutlookEvent(encryptedToken, eventId, slotTime, attendeeEmail, options = {}) {
+  if (!eventId) {
+    return null;
+  }
+
+  const response = await requestWithRefresh(encryptedToken, refreshOutlookToken, options.onTokenRefresh, (token) => (
+    axios.patch(
+      `https://graph.microsoft.com/v1.0/me/calendar/events/${eventId}`,
+      outlookEventBody(slotTime, attendeeEmail, options, true),
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+  ));
+
+  return response?.data?.id || eventId;
 }
 
 async function deleteGoogleEvent(encryptedToken, eventId, options = {}) {
@@ -271,6 +306,8 @@ module.exports = {
   fetchOutlookEvents,
   createGoogleEvent,
   createOutlookEvent,
+  updateGoogleEvent,
+  updateOutlookEvent,
   deleteGoogleEvent,
   deleteOutlookEvent,
 };
