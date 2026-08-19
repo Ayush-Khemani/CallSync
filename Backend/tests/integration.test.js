@@ -114,6 +114,72 @@ test('authenticated generation endpoint returns a usable deterministic fallback'
   assert.equal(Object.hasOwn(response.body, 'provider'), false);
 });
 
+test('grounded workflow generation follows persisted meeting state', async () => {
+  const email = 'workflow-host@example.com';
+  const password = 'StrongPass123';
+
+  await request('POST', '/api/auth/register', { email, password });
+  const login = await request('POST', '/api/auth/login', { email, password });
+  const authHeaders = { Authorization: `Bearer ${login.body.token}` };
+
+  const createMeeting = await request('POST', '/api/meetings/create', {
+    attendeeEmail: 'investor@example.com',
+    attendeeName: 'Maya Chen',
+    durationMinutes: 30,
+    slots: ['2026-09-04T14:00:00.000Z'],
+    brief: {
+      type: 'Investor meeting',
+      goal: 'Understand fund fit and agree the next fundraising step.',
+      questions: ['What stage do you focus on?'],
+      message: 'Pick a time that works.',
+      internalNotes: 'Bring the current product deck.',
+    },
+  }, authHeaders);
+  assert.equal(createMeeting.statusCode, 201);
+
+  const ownedMeetings = await request('GET', '/api/meetings', null, authHeaders);
+  const meeting = ownedMeetings.body.meetings.find((item) => item.uniqueLink === createMeeting.body.uniqueLink);
+  assert.equal(Number.isInteger(meeting.id), true);
+
+  const followUp = await request('POST', '/api/intelligence/generate', {
+    kind: 'follow_up',
+    meetingId: meeting.id,
+    context: { bookingUrl: `https://callsync.example/select-slot/${meeting.uniqueLink}` },
+  }, authHeaders);
+  assert.equal(followUp.statusCode, 200);
+  assert.match(followUp.body.output.message, /Hi Maya/);
+  assert.match(followUp.body.output.message, /callsync\.example/);
+
+  const publicMeeting = await request('GET', `/api/meetings/${meeting.uniqueLink}`);
+  const selectedSlot = publicMeeting.body.slots[0];
+  const selectSlot = await request('POST', `/api/meetings/select-slot/${meeting.uniqueLink}`, {
+    slotId: selectedSlot.id,
+    guestAnswers: [{ question: 'What stage do you focus on?', answer: 'We focus on seed-stage infrastructure companies.' }],
+  });
+  assert.equal(selectSlot.statusCode, 200);
+
+  const preCall = await request('POST', '/api/intelligence/generate', {
+    kind: 'pre_call',
+    meetingId: meeting.id,
+  }, authHeaders);
+  assert.equal(preCall.statusCode, 200);
+  assert.equal(preCall.body.output.goal, 'Understand fund fit and agree the next fundraising step.');
+  assert.equal(preCall.body.output.agenda.some((item) => item.includes('seed-stage infrastructure')), true);
+
+  const nextStep = await request('POST', '/api/intelligence/generate', {
+    kind: 'next_step',
+    meetingId: meeting.id,
+    context: {
+      happened: true,
+      useful: true,
+      notes: 'They asked for the product deck before the partner meeting.',
+    },
+  }, authHeaders);
+  assert.equal(nextStep.statusCode, 200);
+  assert.match(nextStep.body.output.nextStep, /requested material|investor step/i);
+  assert.match(nextStep.body.output.followUpHint, /product deck/i);
+});
+
 test('creates a meeting, preserves duration, exposes slots, and confirms one selected slot', async () => {
   const email = 'host-flow@example.com';
   const password = 'StrongPass123';
