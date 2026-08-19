@@ -85,7 +85,7 @@ test('registers a user and logs in with persisted credentials', async () => {
   assert.equal(typeof login.body.token, 'string');
 });
 
-test('creates a meeting, exposes slots, and confirms one selected slot', async () => {
+test('creates a meeting, preserves duration, exposes slots, and confirms one selected slot', async () => {
   const email = 'host-flow@example.com';
   const password = 'StrongPass123';
   const offeredSlots = [
@@ -100,11 +100,13 @@ test('creates a meeting, exposes slots, and confirms one selected slot', async (
   const createMeeting = await request('POST', '/api/meetings/create', {
     attendeeEmail: 'guest@example.com',
     attendeeName: 'Guest Person',
+    durationMinutes: 30,
     slots: offeredSlots,
   }, authHeaders);
 
   assert.equal(createMeeting.statusCode, 201);
   assert.equal(createMeeting.body.message, 'Meeting created');
+  assert.equal(createMeeting.body.durationMinutes, 30);
   assert.match(createMeeting.body.uniqueLink, /^[A-Za-z0-9_-]{24}$/);
 
   const publicMeeting = await request('GET', `/api/meetings/${createMeeting.body.uniqueLink}`);
@@ -112,6 +114,7 @@ test('creates a meeting, exposes slots, and confirms one selected slot', async (
   assert.equal(publicMeeting.body.meeting.attendeeEmail, 'guest@example.com');
   assert.equal(publicMeeting.body.meeting.attendeeName, 'Guest Person');
   assert.equal(publicMeeting.body.meeting.status, 'pending');
+  assert.equal(publicMeeting.body.meeting.durationMinutes, 30);
   assert.equal(publicMeeting.body.slots.length, 2);
 
   const selectedSlot = publicMeeting.body.slots[0];
@@ -121,11 +124,13 @@ test('creates a meeting, exposes slots, and confirms one selected slot', async (
 
   assert.equal(selectSlot.statusCode, 200);
   assert.equal(selectSlot.body.message, 'Slot selected');
+  assert.equal(selectSlot.body.durationMinutes, 30);
   assert.equal(new Date(selectSlot.body.selectedSlot).toISOString(), new Date(selectedSlot.slot_time).toISOString());
 
   const confirmedMeeting = await request('GET', `/api/meetings/${createMeeting.body.uniqueLink}`);
   assert.equal(confirmedMeeting.statusCode, 200);
   assert.equal(confirmedMeeting.body.meeting.status, 'confirmed');
+  assert.equal(confirmedMeeting.body.meeting.durationMinutes, 30);
   assert.equal(confirmedMeeting.body.slots.length, 1);
   assert.equal(confirmedMeeting.body.slots[0].is_selected, true);
 });
