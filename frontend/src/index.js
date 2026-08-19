@@ -7,6 +7,7 @@ import App from './App';
 import LandingPageV6 from './LandingPageV6';
 import Stage4Product from './Stage4Product';
 import Stage5Prep, { Stage5Launcher } from './Stage5Prep';
+import OAuthCallbackPage from './OAuthCallbackPage';
 import reportWebVitals from './reportWebVitals';
 
 const NAVIGATION_EVENT = 'callsync:navigation';
@@ -40,6 +41,8 @@ function RootApp() {
   if (pathname === '/prepare') return <Stage5Prep />;
   if (pathname === '/dashboard') return <><Stage4Product /><Stage5Launcher /></>;
   if (pathname.startsWith('/select-slot/')) return <Stage4Product />;
+  if (pathname === '/auth/google') return <OAuthCallbackPage provider="google" />;
+  if (pathname === '/auth/outlook') return <OAuthCallbackPage provider="outlook" />;
   return <App />;
 }
 
