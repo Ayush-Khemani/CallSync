@@ -197,6 +197,14 @@
   border-right: 1px solid rgba(20, 36, 38, 0.09);
 }
 
+.stage5-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .stage5-section-label {
   color: #2c7668;
   font-size: 12px;
@@ -205,10 +213,58 @@
   text-transform: uppercase;
 }
 
+.stage5-mini-button {
+  padding: 8px 11px;
+  border: 1px solid rgba(20, 36, 38, 0.14);
+  border-radius: 10px;
+  background: #fff;
+  color: #285f55;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.stage5-mini-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .stage5-goal {
   margin: 10px 0 22px;
   font-size: 18px;
   line-height: 1.55;
+}
+
+.stage5-prep-field {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 16px;
+}
+
+.stage5-prep-field > span {
+  color: #5c6967;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.stage5-prep-field textarea,
+.editable-stage5-agenda textarea,
+.editable-stage5-opening textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid rgba(20, 36, 38, 0.14);
+  border-radius: 12px;
+  background: #fff;
+  color: #142426;
+  padding: 11px 12px;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.stage5-prep-field textarea {
+  min-height: 88px;
 }
 
 .stage5-agenda {
@@ -242,6 +298,10 @@
   font-weight: 800;
 }
 
+.editable-stage5-agenda textarea {
+  min-height: 66px;
+}
+
 .stage5-opening {
   margin-top: 20px;
   padding: 16px;
@@ -260,6 +320,18 @@
 .stage5-opening p {
   margin: 8px 0 0;
   line-height: 1.55;
+}
+
+.editable-stage5-opening {
+  display: grid;
+  gap: 8px;
+}
+
+.editable-stage5-opening textarea {
+  min-height: 100px;
+  border-color: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
 }
 
 .stage5-context {
@@ -347,6 +419,19 @@
 .stage5-field textarea {
   min-height: 88px;
   resize: vertical;
+}
+
+.stage5-suggestion-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.stage5-suggestion-row small {
+  flex: 1;
+  color: #6a7775;
+  line-height: 1.45;
 }
 
 .stage5-save-row {
@@ -442,7 +527,9 @@
 
   .stage5-topbar,
   .stage5-call-head,
-  .stage5-save-row {
+  .stage5-save-row,
+  .stage5-section-heading,
+  .stage5-suggestion-row {
     align-items: flex-start;
     flex-direction: column;
   }

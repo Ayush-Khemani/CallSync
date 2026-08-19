@@ -53,9 +53,13 @@ export function Stage5Launcher() {
 export default function Stage5Prep() {
   const [meetings, setMeetings] = useState([]);
   const [drafts, setDrafts] = useState({});
+  const [prepDrafts, setPrepDrafts] = useState({});
+  const [nextStepHints, setNextStepHints] = useState({});
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
+  const [generatingPrepId, setGeneratingPrepId] = useState(null);
+  const [suggestingNextStepId, setSuggestingNextStepId] = useState(null);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -76,6 +80,7 @@ export default function Stage5Prep() {
         const nextMeetings = (meetingsResponse.data.meetings || []).map((meeting) => ({ ...meeting, ...(outcomeById.get(meeting.id) || {}) }));
         setMeetings(nextMeetings);
         setDrafts(Object.fromEntries(nextMeetings.map((meeting) => [meeting.id, draftFromMeeting(meeting)])));
+        setPrepDrafts(Object.fromEntries(nextMeetings.filter((meeting) => meeting.status === 'confirmed').map((meeting) => [meeting.id, buildPreCallBrief(meeting)])));
       } catch (error) {
         setMessage(error.response?.data?.error || 'Could not load preparation workspace');
       } finally {
@@ -99,6 +104,71 @@ export default function Stage5Prep() {
       ...current,
       [meetingId]: { ...(current[meetingId] || {}), [key]: value },
     }));
+  }
+
+  function setPrepField(meetingId, key, value) {
+    setPrepDrafts((current) => ({
+      ...current,
+      [meetingId]: { ...(current[meetingId] || {}), [key]: value },
+    }));
+  }
+
+  function setPrepAgendaItem(meetingId, index, value) {
+    setPrepDrafts((current) => {
+      const existing = current[meetingId] || { agenda: [] };
+      return {
+        ...current,
+        [meetingId]: {
+          ...existing,
+          agenda: existing.agenda.map((item, itemIndex) => itemIndex === index ? value : item),
+        },
+      };
+    });
+  }
+
+  async function refreshPrep(meeting) {
+    const fallback = buildPreCallBrief(meeting);
+    setGeneratingPrepId(meeting.id);
+    setMessage('');
+    try {
+      const response = await axios.post(`${API_URL}/api/intelligence/generate`, {
+        kind: 'pre_call',
+        meetingId: meeting.id,
+      }, { headers: authHeaders() });
+      setPrepDrafts((current) => ({ ...current, [meeting.id]: response.data.output || fallback }));
+      setMessage(`Preparation refreshed for ${meeting.attendeeName}. Review and edit it before the call.`);
+    } catch (error) {
+      setPrepDrafts((current) => ({ ...current, [meeting.id]: fallback }));
+      setMessage('Built-in preparation restored because assisted generation was unavailable.');
+    } finally {
+      setGeneratingPrepId(null);
+    }
+  }
+
+  async function suggestNextStep(meeting) {
+    const draft = drafts[meeting.id] || draftFromMeeting(meeting);
+    setSuggestingNextStepId(meeting.id);
+    setMessage('');
+    try {
+      const response = await axios.post(`${API_URL}/api/intelligence/generate`, {
+        kind: 'next_step',
+        meetingId: meeting.id,
+        context: {
+          happened: draft.happened,
+          useful: draft.useful,
+          nextStep: draft.nextStep,
+          notes: draft.notes,
+        },
+      }, { headers: authHeaders() });
+      const output = response.data.output || {};
+      if (output.nextStep) setDraft(meeting.id, 'nextStep', output.nextStep);
+      setNextStepHints((current) => ({ ...current, [meeting.id]: output.followUpHint || '' }));
+      setMessage(`Next-step suggestion ready for ${meeting.attendeeName}. Edit it before saving.`);
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Could not refresh the next-step suggestion');
+    } finally {
+      setSuggestingNextStepId(null);
+    }
   }
 
   async function saveOutcome(meeting) {
@@ -163,7 +233,8 @@ export default function Stage5Prep() {
 
         <div className="stage5-list">
           {visible.map((meeting) => {
-            const brief = buildPreCallBrief(meeting);
+            const fallbackBrief = buildPreCallBrief(meeting);
+            const brief = prepDrafts[meeting.id] || fallbackBrief;
             const action = getMeetingNextAction(meeting);
             const draft = drafts[meeting.id] || draftFromMeeting(meeting);
             const answers = Array.isArray(meeting.guestAnswers) ? meeting.guestAnswers : [];
@@ -180,15 +251,18 @@ export default function Stage5Prep() {
 
                 <div className="stage5-card-grid">
                   <section className="stage5-prep">
-                    <span className="stage5-section-label">Pre-call brief</span>
-                    <p className="stage5-goal">{brief.goal}</p>
-                    <ol className="stage5-agenda">
-                      {brief.agenda.map((item, index) => <li key={`${meeting.id}-${index}`}><span>{index + 1}</span>{item}</li>)}
-                    </ol>
-                    <div className="stage5-opening">
-                      <small>Opening prompt</small>
-                      <p>{brief.openingPrompt}</p>
+                    <div className="stage5-section-heading">
+                      <span className="stage5-section-label">Pre-call brief · editable</span>
+                      <button className="stage5-mini-button" type="button" disabled={generatingPrepId === meeting.id} onClick={() => refreshPrep(meeting)}>{generatingPrepId === meeting.id ? 'Refreshing…' : 'Refresh prep'}</button>
                     </div>
+                    <label className="stage5-prep-field"><span>Goal</span><textarea value={brief.goal} onChange={(event) => setPrepField(meeting.id, 'goal', event.target.value)} /></label>
+                    <ol className="stage5-agenda editable-stage5-agenda">
+                      {brief.agenda.map((item, index) => <li key={`${meeting.id}-${index}`}><span>{index + 1}</span><textarea value={item} onChange={(event) => setPrepAgendaItem(meeting.id, index, event.target.value)} /></li>)}
+                    </ol>
+                    <label className="stage5-opening editable-stage5-opening">
+                      <small>Opening prompt · editable</small>
+                      <textarea value={brief.openingPrompt} onChange={(event) => setPrepField(meeting.id, 'openingPrompt', event.target.value)} />
+                    </label>
                     <div className="stage5-context">
                       {answers.map((item, index) => (
                         <details key={`${item.question}-${index}`}>
@@ -208,6 +282,10 @@ export default function Stage5Prep() {
                       <Choice label="Was it useful?" value={draft.useful} onChange={(value) => setDraft(meeting.id, 'useful', value)} />
                     </div>
                     <label className="stage5-field"><span>Next step</span><textarea value={draft.nextStep} onChange={(event) => setDraft(meeting.id, 'nextStep', event.target.value)} placeholder="Example: Send deck, introduce CTO, schedule technical follow-up…" /></label>
+                    <div className="stage5-suggestion-row">
+                      <button className="stage5-mini-button" type="button" disabled={suggestingNextStepId === meeting.id} onClick={() => suggestNextStep(meeting)}>{suggestingNextStepId === meeting.id ? 'Suggesting…' : 'Suggest next step'}</button>
+                      {nextStepHints[meeting.id] && <small>{nextStepHints[meeting.id]}</small>}
+                    </div>
                     <label className="stage5-field"><span>Follow-up date</span><input type="datetime-local" value={draft.followUpAt} onChange={(event) => setDraft(meeting.id, 'followUpAt', event.target.value)} /></label>
                     <label className="stage5-field"><span>Outcome notes</span><textarea value={draft.notes} onChange={(event) => setDraft(meeting.id, 'notes', event.target.value)} placeholder="Decision, objections, commitments, or anything worth carrying into the next touch." /></label>
                     <div className="stage5-save-row">
