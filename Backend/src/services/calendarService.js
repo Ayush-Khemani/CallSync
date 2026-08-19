@@ -5,6 +5,8 @@ const { decryptToken, encryptToken } = require('../utils/tokenCrypto');
 axios.defaults.timeout = 7000;
 
 const REFRESH_SKEW_MS = 60 * 1000;
+const HOLD_DESCRIPTION = 'Reserved by CallSync while the attendee chooses a time.';
+const MEETING_DESCRIPTION = 'Scheduled through CallSync.';
 
 function buildTokenBundle(data, existingRefreshToken = '') {
   return {
@@ -61,10 +63,16 @@ function eventEnd(slotTime, durationMinutes) {
 
 function googleEventBody(slotTime, attendeeEmail, options = {}, includeAttendees = false) {
   const durationMinutes = normalizeDurationMinutes(options.durationMinutes);
+  const isHold = !attendeeEmail;
   const summary = options.summary || (attendeeEmail ? `Meeting with ${attendeeEmail}` : 'CallSync meeting hold');
+  const description = options.description || (isHold ? HOLD_DESCRIPTION : MEETING_DESCRIPTION);
+
   return {
     summary,
-    start: { dateTime: slotTime },
+    description,
+    visibility: isHold ? 'private' : 'default',
+    transparency: 'opaque',
+    start: { dateTime: new Date(slotTime).toISOString() },
     end: { dateTime: eventEnd(slotTime, durationMinutes) },
     ...(attendeeEmail
       ? { attendees: [{ email: attendeeEmail }] }
@@ -74,9 +82,15 @@ function googleEventBody(slotTime, attendeeEmail, options = {}, includeAttendees
 
 function outlookEventBody(slotTime, attendeeEmail, options = {}, includeAttendees = false) {
   const durationMinutes = normalizeDurationMinutes(options.durationMinutes);
+  const isHold = !attendeeEmail;
   const subject = options.summary || (attendeeEmail ? `Meeting with ${attendeeEmail}` : 'CallSync meeting hold');
+  const description = options.description || (isHold ? HOLD_DESCRIPTION : MEETING_DESCRIPTION);
+
   return {
     subject,
+    sensitivity: isHold ? 'private' : 'normal',
+    showAs: 'busy',
+    body: { contentType: 'text', content: description },
     start: { dateTime: new Date(slotTime).toISOString(), timeZone: 'UTC' },
     end: { dateTime: eventEnd(slotTime, durationMinutes), timeZone: 'UTC' },
     ...(attendeeEmail
@@ -310,4 +324,10 @@ module.exports = {
   updateOutlookEvent,
   deleteGoogleEvent,
   deleteOutlookEvent,
+  _test: {
+    googleEventBody,
+    outlookEventBody,
+    normalizeDurationMinutes,
+    eventEnd,
+  },
 };
