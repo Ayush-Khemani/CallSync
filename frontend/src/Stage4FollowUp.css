@@ -88,6 +88,20 @@
   margin-top: 12px;
 }
 
+.connected-mail-hint {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2d6d61;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .followup-inline-state {
   display: inline-flex;
   align-items: center;
