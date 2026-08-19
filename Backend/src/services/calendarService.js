@@ -40,24 +40,31 @@ function serializeCalendarToken(bundle) {
   return encryptToken(JSON.stringify(bundle));
 }
 
-async function exchangeGoogleCode(code) {
+function requireRedirectUri(provider, redirectUri) {
+  if (!redirectUri) {
+    throw new Error(`${provider} OAuth redirect URI is required`);
+  }
+  return redirectUri;
+}
+
+async function exchangeGoogleCode(code, redirectUri = config.google.redirectUri) {
   const response = await axios.post('https://oauth2.googleapis.com/token', new URLSearchParams({
     client_id: config.google.clientId,
     client_secret: config.google.clientSecret,
     code,
-    redirect_uri: config.google.redirectUri,
+    redirect_uri: requireRedirectUri('Google', redirectUri),
     grant_type: 'authorization_code',
   }));
 
   return buildTokenBundle(response.data);
 }
 
-async function exchangeOutlookCode(code) {
+async function exchangeOutlookCode(code, redirectUri = config.outlook.redirectUri) {
   const response = await axios.post('https://login.microsoftonline.com/common/oauth2/v2.0/token', new URLSearchParams({
     client_id: config.outlook.clientId,
     client_secret: config.outlook.clientSecret,
     code,
-    redirect_uri: config.outlook.redirectUri,
+    redirect_uri: requireRedirectUri('Outlook', redirectUri),
     grant_type: 'authorization_code',
     scope: 'Calendars.ReadWrite offline_access',
   }));
