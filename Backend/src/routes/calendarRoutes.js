@@ -8,6 +8,33 @@ const { generateAvailableSlots, getAvailabilityWindow } = require('../services/a
 
 const router = express.Router();
 
+function logCalendarReadFailure(provider, error) {
+  console.error(`${provider} availability read failed`, {
+    name: error?.name,
+    message: error?.message,
+    code: error?.code,
+    upstreamStatus: error?.response?.status,
+  });
+}
+
+async function fetchConnectedCalendarEvents({ provider, token, windowStart, windowEnd, onTokenRefresh }) {
+  if (!token) {
+    return [];
+  }
+
+  try {
+    return provider === 'Google'
+      ? await fetchGoogleEvents(token, windowStart, windowEnd, { onTokenRefresh })
+      : await fetchOutlookEvents(token, windowStart, windowEnd, { onTokenRefresh });
+  } catch (error) {
+    logCalendarReadFailure(provider, error);
+    throw new HttpError(
+      502,
+      `Could not verify ${provider} Calendar availability. Reconnect the calendar or try again before offering time slots.`
+    );
+  }
+}
+
 router.get('/calendar/available-slots', authMiddleware, asyncHandler(async (req, res) => {
   const { date } = req.query;
   if (!date) {
@@ -43,8 +70,20 @@ router.get('/calendar/available-slots', authMiddleware, asyncHandler(async (req,
   );
 
   const [googleEvents, outlookEvents] = await Promise.all([
-    fetchGoogleEvents(user.google_token, availabilityWindow.start, availabilityWindow.end, { onTokenRefresh: saveGoogleToken }).catch(() => []),
-    fetchOutlookEvents(user.outlook_token, availabilityWindow.start, availabilityWindow.end, { onTokenRefresh: saveOutlookToken }).catch(() => []),
+    fetchConnectedCalendarEvents({
+      provider: 'Google',
+      token: user.google_token,
+      windowStart: availabilityWindow.start,
+      windowEnd: availabilityWindow.end,
+      onTokenRefresh: saveGoogleToken,
+    }),
+    fetchConnectedCalendarEvents({
+      provider: 'Outlook',
+      token: user.outlook_token,
+      windowStart: availabilityWindow.start,
+      windowEnd: availabilityWindow.end,
+      onTokenRefresh: saveOutlookToken,
+    }),
   ]);
 
   res.json({
@@ -52,6 +91,10 @@ router.get('/calendar/available-slots', authMiddleware, asyncHandler(async (req,
     timeZone: availabilityWindow.options.timeZone,
     durationMinutes: availabilityWindow.options.slotMinutes,
     bufferMinutes: availabilityWindow.options.bufferMinutes,
+    calendarsChecked: {
+      google: Boolean(user.google_token),
+      outlook: Boolean(user.outlook_token),
+    },
   });
 }));
 
