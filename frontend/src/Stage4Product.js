@@ -91,8 +91,10 @@ function Meetings({ onCreate }) {
   const [message, setMessage] = useState('');
   const [expandedStage, setExpandedStage] = useState('followUp');
   const [notesDrafts, setNotesDrafts] = useState({});
+  const [followUpDrafts, setFollowUpDrafts] = useState({});
   const [savingNoteId, setSavingNoteId] = useState(null);
   const [recordingFollowUpId, setRecordingFollowUpId] = useState(null);
+  const [generatingFollowUpId, setGeneratingFollowUpId] = useState(null);
 
   const stats = useMemo(() => ({
     total: meetings.length,
@@ -117,6 +119,7 @@ function Meetings({ onCreate }) {
       }));
       setMeetings(nextMeetings);
       setNotesDrafts(Object.fromEntries(nextMeetings.map((meeting) => [meeting.id, meeting.internalNotes || ''])));
+      setFollowUpDrafts(Object.fromEntries(nextMeetings.filter((meeting) => meeting.status === 'pending').map((meeting) => [meeting.id, buildFollowUpMessage(meeting, `${window.location.origin}/select-slot/${meeting.uniqueLink}`)])));
     } catch (error) {
       setMessage(error.response?.data?.error || 'Error loading meetings');
     } finally {
@@ -137,13 +140,37 @@ function Meetings({ onCreate }) {
     }
   }
 
+  function followUpDraft(meeting) {
+    return followUpDrafts[meeting.id] ?? buildFollowUpMessage(meeting, url(meeting.uniqueLink));
+  }
+
   async function copyFollowUp(meeting) {
-    const followUpMessage = buildFollowUpMessage(meeting, url(meeting.uniqueLink));
+    const draft = followUpDraft(meeting);
     try {
-      await navigator.clipboard.writeText(followUpMessage);
+      await navigator.clipboard.writeText(draft);
       setMessage('Follow-up message copied. Send it in the channel where the conversation already lives.');
     } catch {
-      setMessage(followUpMessage);
+      setMessage(draft);
+    }
+  }
+
+  async function generateFollowUp(meeting) {
+    const fallback = buildFollowUpMessage(meeting, url(meeting.uniqueLink));
+    setGeneratingFollowUpId(meeting.id);
+    setMessage('');
+    try {
+      const response = await axios.post(`${API_URL}/api/intelligence/generate`, {
+        kind: 'follow_up',
+        meetingId: meeting.id,
+        context: { bookingUrl: url(meeting.uniqueLink) },
+      }, { headers: authHeaders() });
+      setFollowUpDrafts((current) => ({ ...current, [meeting.id]: response.data.output?.message || fallback }));
+      setMessage('Follow-up suggestion refreshed. Edit it before copying if you want.');
+    } catch (error) {
+      setFollowUpDrafts((current) => ({ ...current, [meeting.id]: fallback }));
+      setMessage('Built-in follow-up suggestion restored because assisted generation was unavailable.');
+    } finally {
+      setGeneratingFollowUpId(null);
     }
   }
 
@@ -207,7 +234,7 @@ function Meetings({ onCreate }) {
     if (meeting.status !== 'pending') return null;
     const risk = getFollowUpRisk(meeting);
     const meta = getFollowUpMeta(meeting);
-    const followUpMessage = buildFollowUpMessage(meeting, url(meeting.uniqueLink));
+    const draft = followUpDraft(meeting);
 
     return (
       <section className="followup-workflow-card">
@@ -222,11 +249,12 @@ function Meetings({ onCreate }) {
           <span>Last follow-up: {meta.lastLabel}</span>
           <span>Next check: {meta.nextLabel}</span>
         </div>
-        <div className="followup-copy-box">
-          <span className="followup-copy-label">Suggested nudge</span>
-          <p>{followUpMessage}</p>
-        </div>
+        <label className="followup-copy-box editable-followup-copy">
+          <span className="followup-copy-label">Suggested nudge · editable</span>
+          <textarea value={draft} onChange={(event) => setFollowUpDrafts((current) => ({ ...current, [meeting.id]: event.target.value }))} />
+        </label>
         <div className="followup-actions">
+          <button className="btn light small" type="button" onClick={() => generateFollowUp(meeting)} disabled={generatingFollowUpId === meeting.id}>{generatingFollowUpId === meeting.id ? 'Refreshing…' : 'Refresh suggestion'}</button>
           <button className="btn light small" type="button" onClick={() => copyFollowUp(meeting)}>Copy follow-up</button>
           <button className="btn primary small" type="button" onClick={() => markFollowedUp(meeting)} disabled={recordingFollowUpId === meeting.id}>
             {recordingFollowUpId === meeting.id ? 'Recording…' : 'Mark followed up'}
@@ -375,6 +403,14 @@ function CreateMeeting({ onCreated }) {
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState('');
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const setBriefField = (key, value) => setBrief((current) => ({ ...current, [key]: value }));
+
+  function setBriefQuestion(index, value) {
+    setBrief((current) => ({
+      ...current,
+      questions: current.questions.map((question, questionIndex) => questionIndex === index ? value : question),
+    }));
+  }
 
   function applyDraft(draft) {
     setForm((current) => ({ ...current, ...Object.fromEntries(Object.entries(draft.formPatch).filter(([, value]) => value !== '')) }));
@@ -471,14 +507,14 @@ function CreateMeeting({ onCreated }) {
           </div>
           <button type="button" className="btn primary" onClick={runAssistant} disabled={assistantLoading}>{assistantLoading ? 'Shaping request…' : 'Generate meeting brief'}</button>
         </div>
-        <aside className="persistent-brief-preview">
-          <span>{brief.type}</span>
-          <h4>{brief.goal}</h4>
+        <aside className="persistent-brief-preview editable-brief-preview">
+          <label className="brief-edit-field"><small>Meeting type</small><input value={brief.type} onChange={(event) => setBriefField('type', event.target.value)} /></label>
+          <label className="brief-edit-field"><small>Goal</small><textarea value={brief.goal} onChange={(event) => setBriefField('goal', event.target.value)} /></label>
           {assistantDraft && <div className="brief-summary">{assistantDraft.insights.map((item) => <small key={item}>{item}</small>)}</div>}
-          <div className="qualification-preview"><small>Guest questions</small><ol>{brief.questions.map((question) => <li key={question}>{question}</li>)}</ol></div>
-          <p>{brief.message}</p>
+          <div className="qualification-preview editable-questions"><small>Guest questions · editable</small><ol>{brief.questions.map((question, index) => <li key={`${index}-${question.slice(0, 20)}`}><input value={question} onChange={(event) => setBriefQuestion(index, event.target.value)} /></li>)}</ol></div>
+          <label className="brief-edit-field"><small>Invite message</small><textarea value={brief.message} onChange={(event) => setBriefField('message', event.target.value)} /></label>
           <label className="private-note-input">Private notes<textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} placeholder="Anything only you should see before the call." /></label>
-          <small className="persist-hint">This brief, guest questions, guest answers, and private notes will stay attached to the meeting.</small>
+          <small className="persist-hint">Review every generated field before sending. This brief, guest questions, guest answers, and private notes will stay attached to the meeting.</small>
         </aside>
       </div>
 
