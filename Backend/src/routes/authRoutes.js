@@ -22,6 +22,47 @@ function validateCredentials(email, password) {
   }
 }
 
+function isAllowedFrontendOrigin(origin) {
+  if (config.frontendUrls.includes(origin)) {
+    return true;
+  }
+
+  if (!config.frontendOriginRegex) {
+    return false;
+  }
+
+  try {
+    return new RegExp(config.frontendOriginRegex).test(origin);
+  } catch (error) {
+    return false;
+  }
+}
+
+function resolveOAuthRedirectUri(req, provider) {
+  const configuredRedirectUri = config[provider]?.redirectUri || '';
+  const requestOrigin = req.get('origin');
+
+  if (!requestOrigin) {
+    if (!configuredRedirectUri) {
+      throw new HttpError(500, `${provider} OAuth redirect URI is not configured`);
+    }
+    return configuredRedirectUri;
+  }
+
+  let origin;
+  try {
+    origin = new URL(requestOrigin).origin;
+  } catch (error) {
+    throw new HttpError(400, 'Invalid OAuth request origin');
+  }
+
+  if (!isAllowedFrontendOrigin(origin)) {
+    throw new HttpError(403, 'OAuth request origin is not allowed');
+  }
+
+  return `${origin}/auth/${provider}`;
+}
+
 router.post('/auth/register', asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   validateCredentials(email, password);
@@ -67,7 +108,8 @@ router.post('/auth/google-callback', authMiddleware, asyncHandler(async (req, re
     throw new HttpError(400, 'Authorization code required');
   }
 
-  const tokenBundle = await exchangeGoogleCode(req.body.code);
+  const redirectUri = resolveOAuthRedirectUri(req, 'google');
+  const tokenBundle = await exchangeGoogleCode(req.body.code, redirectUri);
   await pool.query(
     'UPDATE users SET google_token = $1 WHERE id = $2',
     [serializeCalendarToken(tokenBundle), req.userId]
@@ -81,7 +123,8 @@ router.post('/auth/outlook-callback', authMiddleware, asyncHandler(async (req, r
     throw new HttpError(400, 'Authorization code required');
   }
 
-  const tokenBundle = await exchangeOutlookCode(req.body.code);
+  const redirectUri = resolveOAuthRedirectUri(req, 'outlook');
+  const tokenBundle = await exchangeOutlookCode(req.body.code, redirectUri);
   await pool.query(
     'UPDATE users SET outlook_token = $1 WHERE id = $2',
     [serializeCalendarToken(tokenBundle), req.userId]
