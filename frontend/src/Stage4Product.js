@@ -511,7 +511,7 @@ function CreateMeeting({ onCreated }) {
           <label className="brief-edit-field"><small>Meeting type</small><input value={brief.type} onChange={(event) => setBriefField('type', event.target.value)} /></label>
           <label className="brief-edit-field"><small>Goal</small><textarea value={brief.goal} onChange={(event) => setBriefField('goal', event.target.value)} /></label>
           {assistantDraft && <div className="brief-summary">{assistantDraft.insights.map((item) => <small key={item}>{item}</small>)}</div>}
-          <div className="qualification-preview editable-questions"><small>Guest questions · editable</small><ol>{brief.questions.map((question, index) => <li key={`${index}-${question.slice(0, 20)}`}><input value={question} onChange={(event) => setBriefQuestion(index, event.target.value)} /></li>)}</ol></div>
+          <div className="qualification-preview editable-questions"><small>Guest questions · editable</small><ol>{brief.questions.map((question, index) => <li key={`question-${index}`}><input value={question} onChange={(event) => setBriefQuestion(index, event.target.value)} /></li>)}</ol></div>
           <label className="brief-edit-field"><small>Invite message</small><textarea value={brief.message} onChange={(event) => setBriefField('message', event.target.value)} /></label>
           <label className="private-note-input">Private notes<textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} placeholder="Anything only you should see before the call." /></label>
           <small className="persist-hint">Review every generated field before sending. This brief, guest questions, guest answers, and private notes will stay attached to the meeting.</small>
