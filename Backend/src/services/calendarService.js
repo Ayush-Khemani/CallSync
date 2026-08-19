@@ -7,7 +7,8 @@ axios.defaults.timeout = 7000;
 const REFRESH_SKEW_MS = 60 * 1000;
 const HOLD_DESCRIPTION = 'Reserved by CallSync while the attendee chooses a time.';
 const MEETING_DESCRIPTION = 'Scheduled through CallSync.';
-const OUTLOOK_SCOPES = 'Calendars.ReadWrite Mail.Send offline_access';
+const OUTLOOK_CALENDAR_SCOPES = 'Calendars.ReadWrite offline_access';
+const OUTLOOK_CONNECTED_MAIL_SCOPES = 'Calendars.ReadWrite Mail.Send offline_access';
 
 function buildTokenBundle(data, existingRefreshToken = '', existingScope = '') {
   return {
@@ -140,7 +141,7 @@ async function exchangeOutlookCode(code, redirectUri = config.outlook.redirectUr
     code,
     redirect_uri: requireRedirectUri('Outlook', redirectUri),
     grant_type: 'authorization_code',
-    scope: OUTLOOK_SCOPES,
+    scope: OUTLOOK_CONNECTED_MAIL_SCOPES,
   }));
 
   return buildTokenBundle(response.data);
@@ -163,7 +164,7 @@ async function refreshOutlookToken(bundle) {
     client_secret: config.outlook.clientSecret,
     refresh_token: bundle.refreshToken,
     grant_type: 'refresh_token',
-    scope: OUTLOOK_SCOPES,
+    scope: bundle.scope || OUTLOOK_CALENDAR_SCOPES,
   }));
 
   return buildTokenBundle(response.data, bundle.refreshToken, bundle.scope);
