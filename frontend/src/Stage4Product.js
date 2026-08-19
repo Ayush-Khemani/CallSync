@@ -164,8 +164,10 @@ function Meetings({ onCreate }) {
 
   async function cancel(link) {
     try {
-      await axios.post(`${API_URL}/api/meetings/cancel/${link}`, {}, { headers: authHeaders() });
-      setMessage('Meeting cancelled.');
+      const response = await axios.post(`${API_URL}/api/meetings/cancel/${link}`, {}, { headers: authHeaders() });
+      setMessage(response.data.delivery?.calendarCleanupComplete === false
+        ? 'Meeting cancelled, but one or more calendar events could not be removed. Check your connected calendars.'
+        : 'Meeting cancelled and calendar events removed.');
       load();
     } catch (error) {
       setMessage(error.response?.data?.error || 'Error cancelling meeting');
@@ -263,7 +265,7 @@ function Meetings({ onCreate }) {
           <div className="context-label">Private host notes</div>
           <textarea
             value={notesDrafts[meeting.id] ?? ''}
-            onChange={(event) => setNotesDrafts((current) => ({ ...current, [meeting.id]: event.target.value }))}
+            onChange={(event) => setNotesDrafts((current) => ({ ...current, [meeting.id]: event.target.value }))
             placeholder="Add private preparation notes, context, or reminders for this meeting."
           />
           <button className="btn light small" onClick={() => saveNotes(meeting)} disabled={savingNoteId === meeting.id}>
@@ -329,7 +331,7 @@ function Meetings({ onCreate }) {
                         <div className="meeting-core">
                           <header><div><div className="pipeline-card-type">{meeting.meetingType || 'General meeting'}</div><h3>{meeting.attendeeName}</h3></div><span className={`badge ${needsFollowUp(meeting) ? 'followup' : meeting.status}`}>{needsFollowUp(meeting) ? 'needs follow-up' : meeting.status}</span></header>
                           <p>{meeting.attendeeEmail}</p>
-                          <div className="meta"><span>Selected <b>{formatDateTime(meeting.selectedSlot)}</b></span><span>Window <b>{formatDateTime(meeting.firstSlot)} - {formatDateTime(meeting.lastSlot)}</b></span><span>Slots <b>{meeting.slotCount}</b></span></div>
+                          <div className="meta"><span>Selected <b>{formatDateTime(meeting.selectedSlot)}</b></span><span>Duration <b>{meeting.durationMinutes || 60} min</b></span><span>Window <b>{formatDateTime(meeting.firstSlot)} - {formatDateTime(meeting.lastSlot)}</b></span><span>Slots <b>{meeting.slotCount}</b></span></div>
                           {risk.level !== 'none' && <div className={`followup-risk ${risk.level}`}><b>{risk.label}</b><span>{risk.detail}</span></div>}
                           <FollowUpWorkflow meeting={meeting} />
                           <MeetingBrief meeting={meeting} />
@@ -417,12 +419,16 @@ function CreateMeeting({ onCreated }) {
         attendeeEmail: form.attendeeEmail,
         attendeeName: form.attendeeName,
         slots: selected,
+        durationMinutes: form.durationMinutes,
         brief: { ...brief, internalNotes },
       }, { headers: authHeaders() });
-      setMessage(`Meeting created. Booking link: ${window.location.origin}/select-slot/${response.data.uniqueLink}`);
+      const bookingLink = `${window.location.origin}/select-slot/${response.data.uniqueLink}`;
+      setMessage(response.data.delivery?.requestEmail?.sent
+        ? `Meeting created and request email sent. Booking link: ${bookingLink}`
+        : `Meeting created, but email delivery was not confirmed. Copy and send this booking link: ${bookingLink}`);
       setSlots([]);
       setSelected([]);
-      if (onCreated) setTimeout(onCreated, 700);
+      if (onCreated) setTimeout(onCreated, 1200);
     } catch (error) {
       setMessage(error.response?.data?.error || 'Error creating meeting');
     }
@@ -507,12 +513,20 @@ function SelectSlotPage() {
     setBusySlotId(slot.id);
     setMessage('');
     try {
-      await axios.post(`${API_URL}/api/meetings/select-slot/${uniqueLink}`, {
+      const response = await axios.post(`${API_URL}/api/meetings/select-slot/${uniqueLink}`, {
         slotId: slot.id,
         guestAnswers: questions.map((question) => ({ question, answer: answers[question] || '' })),
       });
       setMeeting((current) => ({ ...current, status: 'confirmed', selectedSlot: slot.slot_time }));
-      setMessage('Meeting confirmed. Your answers were shared with the host.');
+      const emailDelivery = response.data.delivery?.confirmationEmail;
+      const cleanupComplete = response.data.delivery?.calendar?.holdCleanupComplete;
+      if (emailDelivery && (!emailDelivery.attendeeSent || !emailDelivery.hostSent)) {
+        setMessage('Meeting confirmed on the calendar, but one or more confirmation emails could not be verified as sent.');
+      } else if (cleanupComplete === false) {
+        setMessage('Meeting confirmed. One unused calendar hold still needs cleanup on the host side.');
+      } else {
+        setMessage('Meeting confirmed. Calendar invitations and confirmation emails were sent.');
+      }
     } catch (error) {
       setMessage(error.response?.data?.error || 'Error selecting slot');
     } finally {
@@ -529,6 +543,7 @@ function SelectSlotPage() {
         {meeting?.inviteMessage ? <p className="booking-invite-message">{meeting.inviteMessage}</p> : <p>Choose the time that works best from the host-approved options.</p>}
 
         {meeting?.meetingGoal && <aside className="booking-goal"><span>What this meeting is about</span><p>{meeting.meetingGoal}</p></aside>}
+        {meeting && <p className="booking-invite-message">Duration: {meeting.durationMinutes || 60} minutes.</p>}
         {meeting?.status && <p className={`notice ${meeting.status}`}>Status: {meeting.status}{meeting.selectedSlot ? ` for ${formatDateTime(meeting.selectedSlot)}` : ''}</p>}
         {meeting?.status === 'cancelled' && <p>This meeting request is no longer available.</p>}
 
