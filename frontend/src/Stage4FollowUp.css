@@ -62,6 +62,25 @@
   line-height: 1.55;
 }
 
+.editable-followup-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.editable-followup-copy textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  border: 1px solid rgba(20, 36, 38, 0.12);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #33413f;
+  font: inherit;
+  line-height: 1.55;
+}
+
 .followup-actions {
   display: flex;
   flex-wrap: wrap;
