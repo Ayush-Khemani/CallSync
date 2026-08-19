@@ -92,6 +92,52 @@
   gap: 12px;
 }
 
+.editable-brief-preview .brief-edit-field {
+  display: grid;
+  gap: 6px;
+}
+
+.editable-brief-preview .brief-edit-field > small,
+.editable-questions > small {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.editable-brief-preview input,
+.editable-brief-preview textarea,
+.editable-questions input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.08);
+  color: inherit;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.editable-brief-preview input,
+.editable-questions input {
+  min-height: 40px;
+  padding: 9px 10px;
+}
+
+.editable-brief-preview textarea {
+  min-height: 82px;
+  padding: 10px 11px;
+  resize: vertical;
+}
+
+.editable-questions ol {
+  display: grid;
+  gap: 7px;
+}
+
+.editable-questions li { padding-left: 2px; }
+
 .qualification-preview {
   padding: 12px;
   border: 1px solid rgba(255,255,255,0.12);
