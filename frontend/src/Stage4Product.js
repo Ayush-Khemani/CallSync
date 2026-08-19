@@ -265,7 +265,7 @@ function Meetings({ onCreate }) {
           <div className="context-label">Private host notes</div>
           <textarea
             value={notesDrafts[meeting.id] ?? ''}
-            onChange={(event) => setNotesDrafts((current) => ({ ...current, [meeting.id]: event.target.value }))
+            onChange={(event) => setNotesDrafts((current) => ({ ...current, [meeting.id]: event.target.value }))}
             placeholder="Add private preparation notes, context, or reminders for this meeting."
           />
           <button className="btn light small" onClick={() => saveNotes(meeting)} disabled={savingNoteId === meeting.id}>
