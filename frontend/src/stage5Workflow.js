@@ -77,16 +77,16 @@ export function getMeetingNextAction(meeting, now = Date.now()) {
   return { id: 'none', label: 'No next action', priority: 8 };
 }
 
-export function filterBookedMeetings(meetings, filter) {
+export function filterBookedMeetings(meetings, filter, now = Date.now()) {
   const booked = meetings.filter((meeting) => meeting.status === 'confirmed');
   if (!filter || filter === 'all') return booked;
-  return booked.filter((meeting) => getMeetingNextAction(meeting).id === filter);
+  return booked.filter((meeting) => getMeetingNextAction(meeting, now).id === filter);
 }
 
-export function sortByNextAction(meetings) {
+export function sortByNextAction(meetings, now = Date.now()) {
   return [...meetings].sort((a, b) => {
-    const actionA = getMeetingNextAction(a);
-    const actionB = getMeetingNextAction(b);
+    const actionA = getMeetingNextAction(a, now);
+    const actionB = getMeetingNextAction(b, now);
     if (actionA.priority !== actionB.priority) return actionA.priority - actionB.priority;
     const aTime = a.selectedSlot ? new Date(a.selectedSlot).getTime() : Number.MAX_SAFE_INTEGER;
     const bTime = b.selectedSlot ? new Date(b.selectedSlot).getTime() : Number.MAX_SAFE_INTEGER;

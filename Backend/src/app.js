@@ -4,6 +4,7 @@ const config = require('./config/env');
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
 const calendarRoutes = require('./routes/calendarRoutes');
+const integrationRoutes = require('./routes/integrationRoutes');
 const meetingRoutes = require('./routes/meetingRoutes');
 const followUpRoutes = require('./routes/followUpRoutes');
 const outcomeRoutes = require('./routes/outcomeRoutes');
@@ -75,6 +76,7 @@ if (config.nodeEnv !== 'test' && process.env.AUTO_RUN_MIGRATIONS !== 'false') {
 
 app.use('/api', authRoutes);
 app.use('/api', calendarRoutes);
+app.use('/api', integrationRoutes);
 app.use('/api', followUpRoutes);
 app.use('/api', outcomeRoutes);
 app.use('/api', intelligenceRoutes);

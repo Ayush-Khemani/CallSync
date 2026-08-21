@@ -7,12 +7,15 @@ axios.defaults.timeout = 7000;
 const REFRESH_SKEW_MS = 60 * 1000;
 const HOLD_DESCRIPTION = 'Reserved by CallSync while the attendee chooses a time.';
 const MEETING_DESCRIPTION = 'Scheduled through CallSync.';
+const OUTLOOK_CALENDAR_SCOPES = 'Calendars.ReadWrite offline_access';
+const OUTLOOK_CONNECTED_MAIL_SCOPES = 'Calendars.ReadWrite Mail.Send offline_access';
 
-function buildTokenBundle(data, existingRefreshToken = '') {
+function buildTokenBundle(data, existingRefreshToken = '', existingScope = '') {
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token || existingRefreshToken || '',
     expiresAt: data.expires_in ? Date.now() + (Number(data.expires_in) * 1000) : null,
+    scope: data.scope || existingScope || '',
   };
 }
 
@@ -25,13 +28,18 @@ function parseCalendarToken(encryptedToken) {
   try {
     const parsed = JSON.parse(decrypted);
     if (parsed && parsed.accessToken) {
-      return parsed;
+      return {
+        ...parsed,
+        refreshToken: parsed.refreshToken || '',
+        expiresAt: parsed.expiresAt || null,
+        scope: parsed.scope || '',
+      };
     }
   } catch (error) {
-    return { accessToken: decrypted, refreshToken: '', expiresAt: null };
+    return { accessToken: decrypted, refreshToken: '', expiresAt: null, scope: '' };
   }
 
-  return { accessToken: decrypted, refreshToken: '', expiresAt: null };
+  return { accessToken: decrypted, refreshToken: '', expiresAt: null, scope: '' };
 }
 
 function serializeCalendarToken(bundle) {
@@ -40,6 +48,21 @@ function serializeCalendarToken(bundle) {
   }
 
   return encryptToken(JSON.stringify(bundle));
+}
+
+function tokenScopes(encryptedToken) {
+  const bundle = parseCalendarToken(encryptedToken);
+  return bundle?.scope
+    ? bundle.scope.split(/\s+/).map((scope) => scope.trim()).filter(Boolean)
+    : [];
+}
+
+function getTokenMetadata(encryptedToken) {
+  const bundle = parseCalendarToken(encryptedToken);
+  return {
+    connected: Boolean(bundle?.accessToken),
+    scopes: tokenScopes(encryptedToken),
+  };
 }
 
 function requireRedirectUri(provider, redirectUri) {
@@ -118,7 +141,7 @@ async function exchangeOutlookCode(code, redirectUri = config.outlook.redirectUr
     code,
     redirect_uri: requireRedirectUri('Outlook', redirectUri),
     grant_type: 'authorization_code',
-    scope: 'Calendars.ReadWrite offline_access',
+    scope: OUTLOOK_CONNECTED_MAIL_SCOPES,
   }));
 
   return buildTokenBundle(response.data);
@@ -132,7 +155,7 @@ async function refreshGoogleToken(bundle) {
     grant_type: 'refresh_token',
   }));
 
-  return buildTokenBundle(response.data, bundle.refreshToken);
+  return buildTokenBundle(response.data, bundle.refreshToken, bundle.scope);
 }
 
 async function refreshOutlookToken(bundle) {
@@ -141,10 +164,10 @@ async function refreshOutlookToken(bundle) {
     client_secret: config.outlook.clientSecret,
     refresh_token: bundle.refreshToken,
     grant_type: 'refresh_token',
-    scope: 'Calendars.ReadWrite offline_access',
+    scope: bundle.scope || OUTLOOK_CALENDAR_SCOPES,
   }));
 
-  return buildTokenBundle(response.data, bundle.refreshToken);
+  return buildTokenBundle(response.data, bundle.refreshToken, bundle.scope);
 }
 
 async function getAccessToken(encryptedToken, refreshTokenFn, onTokenRefresh) {
@@ -182,8 +205,16 @@ async function requestWithRefresh(encryptedToken, refreshTokenFn, onTokenRefresh
   }
 }
 
+async function withGoogleAccessToken(encryptedToken, options = {}, requestFn) {
+  return requestWithRefresh(encryptedToken, refreshGoogleToken, options.onTokenRefresh, requestFn);
+}
+
+async function withOutlookAccessToken(encryptedToken, options = {}, requestFn) {
+  return requestWithRefresh(encryptedToken, refreshOutlookToken, options.onTokenRefresh, requestFn);
+}
+
 async function fetchGoogleEvents(encryptedToken, windowStart, windowEnd, options = {}) {
-  const response = await requestWithRefresh(encryptedToken, refreshGoogleToken, options.onTokenRefresh, (token) => (
+  const response = await withGoogleAccessToken(encryptedToken, options, (token) => (
     axios.get('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
       headers: { Authorization: `Bearer ${token}` },
       params: {
@@ -203,7 +234,7 @@ async function fetchGoogleEvents(encryptedToken, windowStart, windowEnd, options
 }
 
 async function fetchOutlookEvents(encryptedToken, windowStart, windowEnd, options = {}) {
-  const response = await requestWithRefresh(encryptedToken, refreshOutlookToken, options.onTokenRefresh, (token) => (
+  const response = await withOutlookAccessToken(encryptedToken, options, (token) => (
     axios.get('https://graph.microsoft.com/v1.0/me/calendarView', {
       headers: { Authorization: `Bearer ${token}` },
       params: {
@@ -222,7 +253,7 @@ async function fetchOutlookEvents(encryptedToken, windowStart, windowEnd, option
 }
 
 async function createGoogleEvent(encryptedToken, slotTime, attendeeEmail, options = {}) {
-  const response = await requestWithRefresh(encryptedToken, refreshGoogleToken, options.onTokenRefresh, (token) => (
+  const response = await withGoogleAccessToken(encryptedToken, options, (token) => (
     axios.post(
       'https://www.googleapis.com/calendar/v3/calendars/primary/events',
       googleEventBody(slotTime, attendeeEmail, options),
@@ -237,7 +268,7 @@ async function createGoogleEvent(encryptedToken, slotTime, attendeeEmail, option
 }
 
 async function createOutlookEvent(encryptedToken, slotTime, attendeeEmail, options = {}) {
-  const response = await requestWithRefresh(encryptedToken, refreshOutlookToken, options.onTokenRefresh, (token) => (
+  const response = await withOutlookAccessToken(encryptedToken, options, (token) => (
     axios.post(
       'https://graph.microsoft.com/v1.0/me/calendar/events',
       outlookEventBody(slotTime, attendeeEmail, options),
@@ -253,7 +284,7 @@ async function updateGoogleEvent(encryptedToken, eventId, slotTime, attendeeEmai
     return null;
   }
 
-  const response = await requestWithRefresh(encryptedToken, refreshGoogleToken, options.onTokenRefresh, (token) => (
+  const response = await withGoogleAccessToken(encryptedToken, options, (token) => (
     axios.patch(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
       googleEventBody(slotTime, attendeeEmail, options, true),
@@ -272,7 +303,7 @@ async function updateOutlookEvent(encryptedToken, eventId, slotTime, attendeeEma
     return null;
   }
 
-  const response = await requestWithRefresh(encryptedToken, refreshOutlookToken, options.onTokenRefresh, (token) => (
+  const response = await withOutlookAccessToken(encryptedToken, options, (token) => (
     axios.patch(
       `https://graph.microsoft.com/v1.0/me/calendar/events/${eventId}`,
       outlookEventBody(slotTime, attendeeEmail, options, true),
@@ -288,7 +319,7 @@ async function deleteGoogleEvent(encryptedToken, eventId, options = {}) {
     return;
   }
 
-  await requestWithRefresh(encryptedToken, refreshGoogleToken, options.onTokenRefresh, (token) => (
+  await withGoogleAccessToken(encryptedToken, options, (token) => (
     axios.delete(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
       {
@@ -304,7 +335,7 @@ async function deleteOutlookEvent(encryptedToken, eventId, options = {}) {
     return;
   }
 
-  await requestWithRefresh(encryptedToken, refreshOutlookToken, options.onTokenRefresh, (token) => (
+  await withOutlookAccessToken(encryptedToken, options, (token) => (
     axios.delete(
       `https://graph.microsoft.com/v1.0/me/calendar/events/${eventId}`,
       { headers: { Authorization: `Bearer ${token}` } }
@@ -316,6 +347,9 @@ module.exports = {
   exchangeGoogleCode,
   exchangeOutlookCode,
   serializeCalendarToken,
+  getTokenMetadata,
+  withGoogleAccessToken,
+  withOutlookAccessToken,
   fetchGoogleEvents,
   fetchOutlookEvents,
   createGoogleEvent,
@@ -329,5 +363,8 @@ module.exports = {
     outlookEventBody,
     normalizeDurationMinutes,
     eventEnd,
+    buildTokenBundle,
+    parseCalendarToken,
+    tokenScopes,
   },
 };

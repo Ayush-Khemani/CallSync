@@ -45,13 +45,13 @@ test('prioritizes an overdue next action after an outcome', () => {
   }), NOW)).toMatchObject({ id: 'nextAction', label: 'Next action due' });
 });
 
-test('filters and sorts booked meetings by next action', () => {
+test('filters and sorts booked meetings by next action using a deterministic clock', () => {
   const meetings = [
     meeting({ id: 1, selectedSlot: '2026-08-20T12:00:00Z' }),
     meeting({ id: 2, selectedSlot: '2026-08-17T12:00:00Z' }),
     { id: 3, status: 'pending', selectedSlot: null },
   ];
 
-  expect(filterBookedMeetings(meetings, 'outcomeDue').map((item) => item.id)).toEqual([2]);
-  expect(sortByNextAction(meetings.filter((item) => item.status === 'confirmed')).map((item) => item.id)).toEqual([2, 1]);
+  expect(filterBookedMeetings(meetings, 'outcomeDue', NOW).map((item) => item.id)).toEqual([2]);
+  expect(sortByNextAction(meetings.filter((item) => item.status === 'confirmed'), NOW).map((item) => item.id)).toEqual([2, 1]);
 });
