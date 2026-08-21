@@ -1,85 +1,74 @@
-const sendgrid = require('@sendgrid/mail');
-const config = require('../config/env');
+const pool = require('../db/pool');
+const { serializeCalendarToken } = require('./calendarService');
+const {
+  deliverMeetingRequest,
+  deliverMeetingConfirmation,
+} = require('./meetingRequestDeliveryService');
 
-if (config.sendgridApiKey) {
-  sendgrid.setApiKey(config.sendgridApiKey);
+async function loadHostForMeetingLink(uniqueLink) {
+  const result = await pool.query(
+    `SELECT u.id, u.email, u.google_token, u.outlook_token
+     FROM meetings m
+     JOIN users u ON u.id = m.user_id
+     WHERE m.unique_link = $1
+     LIMIT 1`,
+    [uniqueLink]
+  );
+  return result.rows[0] || null;
 }
 
-function escapeHtml(value = '') {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+async function loadHostByEmail(hostEmail) {
+  const result = await pool.query(
+    `SELECT id, email, google_token, outlook_token
+     FROM users
+     WHERE email = $1
+     LIMIT 1`,
+    [hostEmail]
+  );
+  return result.rows[0] || null;
 }
 
-function safeSendFailure(error) {
+function deliveryContext(host) {
+  if (!host) return null;
   return {
-    reason: 'send_failed',
-    code: error?.code || undefined,
-    status: error?.response?.statusCode || error?.response?.status || undefined,
+    googleToken: host.google_token,
+    outlookToken: host.outlook_token,
+    onGoogleTokenRefresh: (tokenBundle) => pool.query(
+      'UPDATE users SET google_token = $1 WHERE id = $2',
+      [serializeCalendarToken(tokenBundle), host.id]
+    ),
+    onOutlookTokenRefresh: (tokenBundle) => pool.query(
+      'UPDATE users SET outlook_token = $1 WHERE id = $2',
+      [serializeCalendarToken(tokenBundle), host.id]
+    ),
   };
 }
 
-async function sendMeetingRequest({ attendeeEmail, attendeeName, slots, uniqueLink, meetingType, inviteMessage }) {
-  if (!config.sendgridApiKey) {
-    return { sent: false, reason: 'not_configured' };
+async function sendMeetingRequest(args) {
+  const host = await loadHostForMeetingLink(args.uniqueLink);
+  const context = deliveryContext(host);
+  if (!context) {
+    return { sent: false, provider: null, reason: 'host_not_found' };
   }
 
-  const safeName = escapeHtml(attendeeName);
-  const safeType = escapeHtml(meetingType || 'Meeting');
-  const safeMessage = escapeHtml(inviteMessage || '').replaceAll('\n', '<br />');
-
-  try {
-    await sendgrid.send({
-      from: config.emailFrom,
-      to: attendeeEmail,
-      subject: `${safeType} request from CallSync`,
-      html: `
-        <p>Hi ${safeName},</p>
-        ${safeMessage ? `<p>${safeMessage}</p>` : ''}
-        <p>You have been offered ${slots.length} time slot${slots.length === 1 ? '' : 's'}.</p>
-        <p><a href="${config.frontendUrl}/select-slot/${uniqueLink}">Choose a time and share context</a></p>
-      `,
-    });
-    return { sent: true };
-  } catch (error) {
-    return { sent: false, ...safeSendFailure(error) };
-  }
+  return deliverMeetingRequest({ ...args, ...context });
 }
 
-async function sendMeetingConfirmation({ attendeeEmail, hostEmail, attendeeName, selectedSlot }) {
-  if (!config.sendgridApiKey) {
+async function sendMeetingConfirmation(args) {
+  const host = await loadHostByEmail(args.hostEmail);
+  const context = deliveryContext(host);
+  if (!context) {
     return {
-      attendee: { sent: false, reason: 'not_configured' },
-      host: { sent: false, reason: 'not_configured' },
+      attendee: { sent: false, provider: null, reason: 'host_not_found' },
+      host: { sent: false, provider: null, reason: 'host_not_found' },
     };
   }
 
-  const [attendeeResult, hostResult] = await Promise.allSettled([
-    sendgrid.send({
-      from: config.emailFrom,
-      to: attendeeEmail,
-      subject: 'Meeting confirmed',
-      html: `<p>Your meeting has been confirmed for ${escapeHtml(selectedSlot)}.</p>`,
-    }),
-    sendgrid.send({
-      from: config.emailFrom,
-      to: hostEmail,
-      subject: 'Meeting confirmed',
-      html: `<p>${escapeHtml(attendeeName)} selected ${escapeHtml(selectedSlot)}.</p>`,
-    }),
-  ]);
-
-  return {
-    attendee: attendeeResult.status === 'fulfilled'
-      ? { sent: true }
-      : { sent: false, ...safeSendFailure(attendeeResult.reason) },
-    host: hostResult.status === 'fulfilled'
-      ? { sent: true }
-      : { sent: false, ...safeSendFailure(hostResult.reason) },
-  };
+  return deliverMeetingConfirmation({ ...args, ...context });
 }
 
-module.exports = { sendMeetingRequest, sendMeetingConfirmation };
+module.exports = {
+  sendMeetingRequest,
+  sendMeetingConfirmation,
+  _test: { deliveryContext },
+};
