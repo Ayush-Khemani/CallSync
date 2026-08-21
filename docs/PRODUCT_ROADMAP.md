@@ -1,8 +1,8 @@
 # CallSync Product Roadmap
 
-_Last updated: 2026-08-18_
+_Last updated: 2026-08-22_
 
-This document is the product source of truth for CallSync. Implementation status should be cross-checked against `docs/ROADMAP_AUDIT_2026-08-18.md`, but new product work should follow the priorities and product boundaries defined here.
+This document is the product source of truth for CallSync. Implementation/release status should be cross-checked against `docs/ROADMAP_STATUS_2026-08-22.md`. Real-provider release gates are tracked separately in issues #14 and #23; **merged/deployed source does not by itself mean external-provider activation has been verified.**
 
 ---
 
@@ -101,7 +101,9 @@ The early product should remain useful for an individual user before adding team
 
 # PRIORITY 0 — Reliability Gate
 
-Before advancing the product roadmap, the core booking loop must be production-reliable.
+**Status: Automated safeguards implemented; real Google/Outlook end-to-end verification remains open in issue #14.**
+
+Before later roadmap stages are considered provider-verified, the core booking loop must be production-reliable with real accounts.
 
 ## Goal
 
@@ -122,9 +124,9 @@ A host should be able to create a meeting request, send it to another person, re
 
 ## Acceptance
 
-**Do not treat later roadmap stages as production-complete until the end-to-end booking flow is verified.**
+**Do not close the reliability gate from CI alone. Issue #14 closes only after the real end-to-end booking/email/calendar scenarios pass.**
 
-This is the highest-priority product requirement.
+This remains the highest-priority release requirement even though later source stages are now deployed.
 
 ---
 
@@ -153,7 +155,7 @@ Make CallSync feel like a workspace for managing meeting opportunities rather th
 
 # Stage 2 — Assisted Meeting Creation
 
-**Status: Complete with deterministic/local generation**
+**Status: Complete; deterministic templates remain available as fallback to Stage 6A intelligence.**
 
 ## Goal
 
@@ -171,9 +173,9 @@ Reduce manual setup and make every meeting link feel purpose-built.
 - A host can start from intent instead of a blank form.
 - Meeting setup communicates why the call exists, not only when it can happen.
 
-## Limitation
+## Current implementation
 
-The current generation path is deterministic frontend logic. Real AI belongs behind the Stage 6A server-side intelligence boundary.
+The original deterministic frontend logic remains as a reliable fallback. Real generation now sits behind the reusable Stage 6A server-side intelligence boundary.
 
 ---
 
@@ -203,7 +205,7 @@ Store meeting context so it remains useful after the link is created.
 
 # Stage 4 — Follow-Up Workflow
 
-**Status: Complete for manual follow-up**
+**Status: Complete; connected-mail sending source is deployed through Stage 6B, with real-provider verification still open.**
 
 ## Goal
 
@@ -216,7 +218,7 @@ Help users recover meetings that would otherwise disappear.
 - Add a "mark followed up" action.
 - Add reminder rules for stale pending invites.
 - Persist follow-up count and next follow-up date.
-- Later, send follow-ups through connected Gmail/Outlook.
+- Send follow-ups through connected Gmail/Outlook where the user has granted the narrow send permission.
 
 ## Acceptance
 
@@ -226,13 +228,13 @@ Help users recover meetings that would otherwise disappear.
 
 ## Product boundary
 
-Stage 4 manages the follow-up workflow even before connected-mailbox sending exists. Actual Gmail/Outlook sending is Stage 6B.
+Stage 4 owns the follow-up workflow. Connected Gmail/Outlook delivery is implemented in Stage 6B and remains subject to the real-provider activation checks in issue #23.
 
 ---
 
 # Stage 5 — Pre-Call Preparation & Outcome Tracking
 
-**Status: Complete in source; production verification required**
+**Status: Complete and deployed; real booked-meeting workflow verification remains part of issues #14/#23.**
 
 ## Goal
 
@@ -258,7 +260,7 @@ Make CallSync valuable before and after the meeting, not only during scheduling.
 
 ## Deployment note
 
-The Stage 5 implementation is committed in source. Production status should remain separate from source-complete status until a fresh successful deployment is verified.
+Stage 5 is deployed on production. Its date-sensitive next-action logic is also covered by deterministic clock-injected tests so CI does not change simply because hard-coded fixture dates pass.
 
 ---
 
@@ -272,11 +274,11 @@ Add real AI and communication capabilities behind the existing workflow without 
 
 ## Stage 6A — Server-Side AI Generation Boundary
 
-**Next intelligence milestone**
+**Status: Source complete and deployed; production provider-backed generation verification remains open in issue #23.**
 
 ### Goal
 
-Replace deterministic helper logic with a reusable server-side generation layer while keeping deterministic fallbacks.
+Use one reusable server-side generation layer while keeping deterministic fallbacks.
 
 ### Tasks
 
@@ -290,6 +292,7 @@ Replace deterministic helper logic with a reusable server-side generation layer 
    - pre-call agenda suggestions
    - opening prompts
    - next-step suggestions
+   - Stage 7 meeting memory
 5. Ground generation in persisted meeting context.
 6. Keep generated output editable.
 7. Keep provider/model details out of the product experience.
@@ -300,9 +303,15 @@ Replace deterministic helper logic with a reusable server-side generation layer 
 - The product still works when AI generation fails.
 - Users are never forced into a chat interface to complete the meeting workflow.
 
+### Remaining activation check
+
+Verify real provider-backed generation with the production model configuration while confirming the deterministic fallback still handles provider/config/schema/timeout failure safely.
+
 ---
 
 ## Stage 6B — Connected Mailbox Sending
+
+**Status: Source complete and deployed via PR #19; real Gmail/Outlook consent and delivery verification remains open in issue #23.**
 
 ### Goal
 
@@ -310,41 +319,64 @@ Move from copyable messages and transactional notifications to communication sen
 
 ### Tasks
 
-- Add Gmail send scopes and connected sending.
-- Add Outlook Mail send scopes and connected sending.
-- Send meeting invitations/follow-ups through the connected mailbox where product behavior requires it.
+- Add Gmail `gmail.send` scope and connected sending without requesting inbox-read access for this workflow.
+- Add Outlook delegated `Mail.Send` alongside calendar access.
+- Send edited follow-ups through the connected mailbox.
 - Keep SendGrid for transactional system notifications.
-- Persist actual outbound timestamps against the Stage 4 follow-up model.
-- Surface sending failures clearly.
+- Persist actual outbound timestamps/provider against the Stage 4 follow-up model.
+- Surface sending failures clearly and do not advance follow-up state after failed sends.
+- Preserve calendar-only token refresh behavior for existing Outlook connections until deliberate re-consent.
 
 ### Acceptance
 
 - The host can complete the follow-up workflow without copying text into another application.
-- Outbound communication is reflected in CallSync's meeting state.
+- Outbound communication is reflected in CallSync's meeting state only after successful delivery action.
+
+### Remaining activation check
+
+Use real Google and Microsoft accounts to re-consent, send, verify guest inbox/Sent Items, and verify revoked/missing send permission does not produce false success.
 
 ---
 
 ## Stage 6C — Smarter Coordination, Measurement & Maturity
 
+**Status: Coordination, analytics, observability, and security source are complete and deployed via PRs #20/#21. Production data/provider checks and encryption-key rollout remain open in issue #23.**
+
 ### Tasks
 
-- Smarter slot ranking.
-- Explain calendar conflicts without exposing private event content.
-- Booking-rate analytics.
-- Follow-up-rate analytics.
-- Meeting-outcome analytics.
-- Observability and alerting.
-- Security review and token-storage hardening.
-- Billing readiness only after the paid product boundary is clear.
+- Smarter slot ranking. **Implemented.**
+- Explain calendar conflicts without exposing private event content. **Implemented with time-geometry-only explanations and provider counts.**
+- Booking-rate analytics. **Implemented.**
+- Follow-up-rate analytics. **Implemented.**
+- Meeting-outcome analytics. **Implemented.**
+- Observability and alerting. **Request correlation and safer production diagnostics implemented; external alerting/vendor integration remains optional future maturity work.**
+- Security review and token-storage hardening. **Implemented in code; production encryption-key migration must be deliberate.**
+- Billing readiness only after the paid product boundary is clear. **Deferred intentionally.**
 
 ### Acceptance
 
 - CallSync can explain and improve the meeting workflow, not only execute it.
 - Operational failures can be detected and diagnosed.
 
+### Production verification completed
+
+- Frontend/backend Stage 6C deployments are READY.
+- Backend responses include `x-request-id`.
+- `/api/health/db` exposes only safe reachability + commit SHA rather than DB host/raw errors.
+- New security/observability tests are actually executed by CI.
+- Blocked CORS origins are covered as a clean 403 path.
+
+### Remaining activation checks
+
+- Exercise ranking and conflict counts with real Google-only and Outlook-only calendar conflicts.
+- Compare lifecycle analytics with real production meeting records.
+- Decide/configure and test the production `TOKEN_ENCRYPTION_KEY` migration before enforcing encrypted storage for existing connections.
+
 ---
 
 # Stage 7 — In-Platform Meeting Memory
+
+**Status: Source complete and deployed via PR #22; real production meeting-memory workflow verification remains open in issue #23.**
 
 ## Goal
 
@@ -354,9 +386,9 @@ A meeting should not become an empty calendar event after it happens, and the us
 
 ## Tasks
 
-- Add a durable meeting notes area attached to the existing meeting record.
-- Allow the user to capture notes during or immediately after the call.
-- Add AI-assisted meeting summaries grounded in the meeting's actual captured content/context.
+- Add a durable meeting notes area attached to the existing meeting record. **Implemented.**
+- Allow the user to capture notes during or immediately after the call. **Implemented.**
+- Add AI-assisted meeting summaries grounded in the meeting's actual captured content/context. **Implemented with deterministic fallback.**
 - Extract editable:
   - key points
   - decisions
@@ -364,18 +396,22 @@ A meeting should not become an empty calendar event after it happens, and the us
   - owners where known
   - deadlines/follow-up dates where known
   - unanswered questions
-- Connect captured notes to the Stage 5 outcome and next-step model.
-- Preserve the meeting brief, guest answers, preparation, notes, outcome, and follow-up history as one continuous record.
-- Make previous meeting context available when the same relationship returns for another call.
+- Connect captured notes to the Stage 5 outcome and next-step model. **Implemented in the continuous meeting record.**
+- Preserve the meeting brief, guest answers, preparation, notes, outcome, and follow-up history as one continuous record. **Implemented.**
+- Make previous meeting context available when the same relationship returns for another call. **Implemented; previous same-attendee saved memory is carried into future pre-call preparation.**
 
 ## Product rule
 
-AI meeting notes should be a workflow feature, not a separate chatbot or generic document editor.
+AI meeting notes remain a workflow feature, not a separate chatbot or generic document editor.
 
 ## Acceptance
 
 - A user can open a completed meeting later and understand why it happened, what was discussed, what was decided, and what should happen next.
 - Important meeting memory stays inside CallSync.
+
+## Verification note
+
+The shipped implementation includes `/memory`, authenticated persistence, grounded generation, editable structured memory, relationship history, and database-backed tests proving prior saved memory can affect the next same-attendee pre-call brief. Real production use still needs to be exercised with actual booked meetings before issue #23 closes.
 
 ---
 
@@ -404,7 +440,7 @@ The durable meeting record is the center.
 
 # What We Should Not Build Next
 
-Until the core lifecycle is strong, avoid spending the next iteration on:
+Until the core lifecycle is verified with real provider usage, avoid spending the next iteration on:
 
 - more landing-page sections for their own sake
 - generic AI chat
@@ -419,13 +455,17 @@ The landing page and application should communicate the same product: **an end-t
 
 ---
 
-# Immediate Build Order
+# Immediate Execution Order
 
-1. **Priority 0: verify and fix the end-to-end booking/email/calendar flow.**
-2. **Verify Stage 5 in production.**
-3. **Stage 6A: server-side AI generation boundary with deterministic fallback.**
-4. **Stage 6B: Gmail/Outlook connected sending.**
-5. **Stage 6C: slot intelligence, analytics, observability, security, billing readiness.**
-6. **Stage 7: in-platform meeting memory and AI-assisted meeting notes.**
+The major roadmap source stack through Stage 7 is now merged and deployed. The next work is **activation and real-world verification**, not another large feature layer:
 
-The roadmap should only advance when each preceding product dependency is reliable enough to support the next layer.
+1. **Priority 0:** complete real Google-only, Outlook-only, dual-calendar, inbox, booking, cancellation, and failure-path verification in issue #14.
+2. **Stage 6A:** verify real provider-backed intelligence in production and deterministic fallback behavior.
+3. **Stage 6B:** re-consent real Gmail/Outlook accounts and verify connected follow-up sends, inbox/Sent Items, and failure-safe state.
+4. **Stage 6C:** exercise real conflict intelligence and validate lifecycle analytics against actual production records.
+5. **Security migration:** decide/configure/test `TOKEN_ENCRYPTION_KEY` with existing connected accounts before enforcing encrypted token storage.
+6. **Stage 7:** exercise `/memory` with real booked meetings, persistence/reload, editable generated memory, and repeated-attendee continuity.
+7. **Close issue #23 only when those provider/environment activation checks pass.**
+8. **Only after repeated product value is demonstrated:** define the paid product boundary and then do billing readiness.
+
+The roadmap should advance from here based on verified product behavior, not feature count.
