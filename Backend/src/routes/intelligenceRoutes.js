@@ -5,9 +5,10 @@ const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
 const { generateWorkflowContent } = require('../services/generationService');
 const { generateWorkflowArtifact } = require('../services/workflowGenerationService');
+const { generateMeetingMemory } = require('../services/memoryGenerationService');
 
 const router = express.Router();
-const SUPPORTED_KINDS = new Set(['meeting_brief', 'follow_up', 'pre_call', 'next_step']);
+const SUPPORTED_KINDS = new Set(['meeting_brief', 'follow_up', 'pre_call', 'next_step', 'meeting_memory']);
 
 function cleanText(value, maxLength = 4000) {
   if (typeof value !== 'string') return '';
@@ -16,6 +17,48 @@ function cleanText(value, maxLength = 4000) {
 
 function optionalBoolean(value) {
   return typeof value === 'boolean' ? value : null;
+}
+
+async function loadPreviousMeetingMemory(meeting, userId) {
+  if (!meeting?.attendee_email || meeting.status !== 'confirmed') return null;
+
+  const result = await pool.query(
+    `SELECT
+      id,
+      selected_slot,
+      memory_summary,
+      memory_key_points,
+      memory_decisions,
+      outcome_next_step,
+      memory_updated_at
+     FROM meetings
+     WHERE user_id = $1
+       AND attendee_email = $2
+       AND status = 'confirmed'
+       AND id <> $3
+       AND ($4::timestamptz IS NULL OR COALESCE(selected_slot, created_at) < $4::timestamptz)
+       AND (
+         COALESCE(memory_summary, '') <> ''
+         OR COALESCE(outcome_next_step, '') <> ''
+         OR jsonb_array_length(COALESCE(memory_key_points, '[]'::jsonb)) > 0
+       )
+     ORDER BY COALESCE(selected_slot, created_at) DESC, id DESC
+     LIMIT 1`,
+    [userId, meeting.attendee_email, meeting.id, meeting.selected_slot]
+  );
+
+  const previous = result.rows[0];
+  if (!previous) return null;
+
+  return {
+    meetingId: previous.id,
+    selectedSlot: previous.selected_slot,
+    summary: previous.memory_summary || '',
+    keyPoints: Array.isArray(previous.memory_key_points) ? previous.memory_key_points : [],
+    decisions: Array.isArray(previous.memory_decisions) ? previous.memory_decisions : [],
+    nextStep: previous.outcome_next_step || '',
+    memoryUpdatedAt: previous.memory_updated_at,
+  };
 }
 
 async function loadPersistedMeetingContext(meetingId, userId) {
@@ -51,7 +94,14 @@ async function loadPersistedMeetingContext(meetingId, userId) {
       outcome_next_step,
       outcome_follow_up_at,
       outcome_notes,
-      outcome_recorded_at
+      outcome_recorded_at,
+      meeting_notes,
+      memory_summary,
+      memory_key_points,
+      memory_decisions,
+      memory_action_items,
+      memory_unanswered_questions,
+      memory_updated_at
     FROM meetings
     WHERE id = $1 AND user_id = $2`,
     [id, userId]
@@ -61,6 +111,8 @@ async function loadPersistedMeetingContext(meetingId, userId) {
   if (!meeting) {
     throw new HttpError(404, 'Meeting not found');
   }
+
+  const previousMeetingMemory = await loadPreviousMeetingMemory(meeting, userId);
 
   return {
     meetingId: meeting.id,
@@ -85,6 +137,14 @@ async function loadPersistedMeetingContext(meetingId, userId) {
     outcomeFollowUpAt: meeting.outcome_follow_up_at,
     outcomeNotes: meeting.outcome_notes || '',
     outcomeRecordedAt: meeting.outcome_recorded_at,
+    notes: meeting.meeting_notes || '',
+    memorySummary: meeting.memory_summary || '',
+    memoryKeyPoints: Array.isArray(meeting.memory_key_points) ? meeting.memory_key_points : [],
+    memoryDecisions: Array.isArray(meeting.memory_decisions) ? meeting.memory_decisions : [],
+    memoryActionItems: Array.isArray(meeting.memory_action_items) ? meeting.memory_action_items : [],
+    memoryUnansweredQuestions: Array.isArray(meeting.memory_unanswered_questions) ? meeting.memory_unanswered_questions : [],
+    memoryUpdatedAt: meeting.memory_updated_at,
+    previousMeetingMemory,
   };
 }
 
@@ -94,7 +154,7 @@ function validateMeetingState(kind, meeting) {
   if (kind === 'follow_up' && meeting.status !== 'pending') {
     throw new HttpError(409, 'Follow-up suggestions are only available for pending meeting requests');
   }
-  if ((kind === 'pre_call' || kind === 'next_step') && meeting.status !== 'confirmed') {
+  if (['pre_call', 'next_step', 'meeting_memory'].includes(kind) && meeting.status !== 'confirmed') {
     throw new HttpError(409, 'This suggestion is only available for booked meetings');
   }
 }
@@ -117,6 +177,9 @@ function editableContextFor(kind, rawContext) {
       notes: cleanText(rawContext.notes, 4000),
     };
   }
+  if (kind === 'meeting_memory') {
+    return { notes: cleanText(rawContext.notes, 20000) };
+  }
   return {};
 }
 
@@ -137,12 +200,25 @@ router.post('/intelligence/generate', authMiddleware, asyncHandler(async (req, r
   const persistedContext = await loadPersistedMeetingContext(req.body.meetingId, req.userId);
   validateMeetingState(kind, persistedContext);
 
+  if (kind === 'meeting_memory' && !(editableContext.notes || persistedContext?.notes)) {
+    throw new HttpError(400, 'Capture meeting notes before generating memory');
+  }
+
   const context = { ...editableContext, persistedContext };
-  const output = kind === 'meeting_brief'
-    ? await generateWorkflowContent({ kind, context })
-    : await generateWorkflowArtifact({ kind, context });
+  let output;
+  if (kind === 'meeting_brief') {
+    output = await generateWorkflowContent({ kind, context });
+  } else if (kind === 'meeting_memory') {
+    output = await generateMeetingMemory({
+      ...context,
+      notes: editableContext.notes || persistedContext.notes,
+    });
+  } else {
+    output = await generateWorkflowArtifact({ kind, context });
+  }
 
   res.json({ output });
 }));
 
 module.exports = router;
+module.exports._test = { editableContextFor, validateMeetingState };

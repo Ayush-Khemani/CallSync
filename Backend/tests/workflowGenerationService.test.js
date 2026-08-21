@@ -58,6 +58,37 @@ test('pre-call fallback prioritizes persisted guest answers', async () => {
   assert.match(output.openingPrompt, /seed-stage infrastructure/);
 });
 
+test('pre-call preparation carries forward prior same-attendee meeting memory', async () => {
+  const output = await generateWorkflowArtifact({
+    kind: 'pre_call',
+    context: {
+      persistedContext: {
+        meetingType: 'Customer discovery',
+        meetingGoal: 'Review progress and choose the next implementation step.',
+        guestAnswers: [],
+        previousMeetingMemory: {
+          summary: 'The team uses a manual approval workflow and asked for a short proposal.',
+          nextStep: 'Send the proposal and schedule a technical follow-up.',
+        },
+      },
+    },
+  });
+
+  assert.equal(output.agenda.some((item) => /manual approval workflow/i.test(item)), true);
+  assert.match(output.openingPrompt, /last time|manual approval workflow/i);
+
+  const providerLikeOutput = _test.addPreCallContinuity({
+    goal: 'Review progress.',
+    agenda: ['Confirm today’s goal.', 'Discuss implementation options.'],
+    openingPrompt: 'What changed since we last spoke?',
+  }, {
+    persistedContext: {
+      previousMeetingMemory: { summary: 'Security review is the remaining blocker.' },
+    },
+  });
+  assert.equal(providerLikeOutput.agenda.some((item) => /Security review is the remaining blocker/i.test(item)), true);
+});
+
 test('next-step fallback responds to meeting type and outcome draft', async () => {
   const output = await generateWorkflowArtifact({
     kind: 'next_step',
