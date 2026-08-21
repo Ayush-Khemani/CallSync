@@ -4,7 +4,7 @@ const authMiddleware = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
 const { fetchGoogleEvents, fetchOutlookEvents, serializeCalendarToken } = require('../services/calendarService');
-const { generateAvailableSlots, getAvailabilityWindow } = require('../services/availabilityService');
+const { analyzeAvailability, getAvailabilityWindow } = require('../services/availabilityService');
 
 const router = express.Router();
 
@@ -86,8 +86,15 @@ router.get('/calendar/available-slots', authMiddleware, asyncHandler(async (req,
     }),
   ]);
 
+  const analysis = analyzeAvailability({
+    google: googleEvents,
+    outlook: outlookEvents,
+  }, date, availabilityOptions);
+
   res.json({
-    availableSlots: generateAvailableSlots([...googleEvents, ...outlookEvents], date, availabilityOptions),
+    availableSlots: analysis.availableSlots,
+    rankedSlots: analysis.rankedSlots,
+    conflictSummary: analysis.conflictSummary,
     timeZone: availabilityWindow.options.timeZone,
     durationMinutes: availabilityWindow.options.slotMinutes,
     bufferMinutes: availabilityWindow.options.bufferMinutes,
