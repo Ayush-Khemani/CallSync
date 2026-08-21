@@ -1,0 +1,548 @@
+.memory-screen {
+  min-height: 100vh;
+  background: #f4f1e9;
+  color: #172825;
+}
+
+.memory-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px clamp(18px, 4vw, 52px);
+  border-bottom: 1px solid rgba(23, 40, 37, 0.1);
+  background: rgba(244, 241, 233, 0.95);
+  backdrop-filter: blur(14px);
+}
+
+.memory-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 850;
+}
+
+.memory-brand span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: #143d3a;
+  color: #fff;
+  font-size: 12px;
+}
+
+.memory-topbar nav {
+  display: flex;
+  gap: 8px;
+}
+
+.memory-topbar nav a {
+  padding: 9px 11px;
+  border: 1px solid rgba(23, 40, 37, 0.12);
+  border-radius: 10px;
+  color: #31524c;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.memory-shell {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  width: min(1380px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 70px;
+  gap: 22px;
+}
+
+.memory-sidebar {
+  position: sticky;
+  top: 94px;
+  align-self: start;
+  max-height: calc(100vh - 116px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(23, 40, 37, 0.1);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.62);
+}
+
+.memory-sidebar-head p,
+.memory-record-head p,
+.memory-context-card > small,
+.memory-notes-card small,
+.memory-history-card small {
+  margin: 0;
+  color: #2d7567;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.memory-sidebar-head h1 {
+  margin: 7px 0 16px;
+  font-size: 25px;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.memory-meeting-list {
+  display: grid;
+  gap: 7px;
+}
+
+.memory-meeting-list > button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: #fffdfa;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.memory-meeting-list > button.active {
+  border-color: #2d7567;
+  background: #eaf2ef;
+}
+
+.memory-meeting-list small,
+.memory-meeting-list span,
+.memory-meeting-list em {
+  color: #6c7874;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.memory-meeting-list strong {
+  font-size: 14px;
+}
+
+.memory-meeting-list em {
+  width: fit-content;
+  margin-top: 4px;
+  color: #2d7567;
+  font-weight: 800;
+}
+
+.memory-main {
+  min-width: 0;
+}
+
+.memory-record-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 16px;
+  padding: 22px 24px;
+  border: 1px solid rgba(23, 40, 37, 0.1);
+  border-radius: 20px;
+  background: #fffdfa;
+}
+
+.memory-record-head h2 {
+  margin: 5px 0 5px;
+  font-size: 30px;
+  letter-spacing: -0.035em;
+}
+
+.memory-record-head > div > span {
+  color: #697570;
+  font-size: 13px;
+}
+
+.memory-head-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.memory-head-actions button,
+.memory-list-editor header button {
+  border: 1px solid rgba(23, 40, 37, 0.14);
+  border-radius: 10px;
+  padding: 9px 11px;
+  background: #fff;
+  color: #285f55;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.memory-head-actions button.primary {
+  border-color: #143d3a;
+  background: #143d3a;
+  color: #fff;
+}
+
+.memory-head-actions button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.memory-continuity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.memory-context-card,
+.memory-notes-card,
+.memory-structured-card,
+.memory-history-card {
+  margin-bottom: 14px;
+  padding: 20px;
+  border: 1px solid rgba(23, 40, 37, 0.1);
+  border-radius: 20px;
+  background: #fffdfa;
+}
+
+.memory-context-card h3,
+.memory-notes-card h3,
+.memory-history-card h3 {
+  margin: 6px 0 10px;
+  font-size: 18px;
+}
+
+.memory-context-card > p,
+.memory-context-card blockquote {
+  margin: 0 0 12px;
+  color: #46544f;
+  line-height: 1.55;
+}
+
+.memory-context-card blockquote {
+  padding-left: 12px;
+  border-left: 3px solid #cbdad5;
+}
+
+.memory-context-card > span {
+  color: #697570;
+  font-size: 12px;
+}
+
+.memory-answer-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.memory-answer-list div {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(23, 40, 37, 0.08);
+}
+
+.memory-answer-list b {
+  font-size: 12px;
+}
+
+.memory-answer-list span,
+.memory-context-card details p {
+  color: #66726e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.memory-context-card details {
+  margin-top: 12px;
+}
+
+.memory-context-card summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.memory-notes-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.45fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.memory-notes-card p {
+  margin: 0;
+  color: #697570;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.memory-notes-card textarea,
+.memory-summary-field textarea,
+.memory-list-row textarea,
+.memory-action-row textarea,
+.memory-action-row input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(23, 40, 37, 0.14);
+  border-radius: 11px;
+  background: #fff;
+  color: #172825;
+  font: inherit;
+}
+
+.memory-notes-card textarea {
+  min-height: 190px;
+  padding: 12px;
+  resize: vertical;
+}
+
+.memory-structured-card {
+  display: grid;
+  gap: 18px;
+}
+
+.memory-summary-field {
+  display: grid;
+  gap: 7px;
+}
+
+.memory-summary-field > span,
+.memory-list-editor header > span {
+  color: #31524c;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.memory-summary-field textarea {
+  min-height: 110px;
+  padding: 12px;
+  resize: vertical;
+}
+
+.memory-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.memory-list-editor {
+  padding: 14px;
+  border: 1px solid rgba(23, 40, 37, 0.09);
+  border-radius: 15px;
+  background: #fafbf8;
+}
+
+.memory-list-editor header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.memory-list-editor header button {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.memory-list-row {
+  display: grid;
+  grid-template-columns: 1fr 28px;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.memory-list-row textarea {
+  min-height: 58px;
+  padding: 9px;
+  resize: vertical;
+}
+
+.memory-list-row > button,
+.memory-action-row > button {
+  border: 0;
+  border-radius: 8px;
+  background: #f2e8e5;
+  color: #8a4a3f;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.memory-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 140px 28px;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.memory-action-row textarea,
+.memory-action-row input {
+  min-height: 42px;
+  padding: 9px;
+}
+
+.memory-action-row textarea {
+  resize: vertical;
+}
+
+.memory-history-card > div {
+  margin-bottom: 10px;
+}
+
+.memory-history-card > button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-top: 1px solid rgba(23, 40, 37, 0.08);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.memory-history-card > button span {
+  color: #6d7975;
+  font-size: 11px;
+}
+
+.memory-history-card > button strong {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.memory-muted,
+.memory-empty {
+  color: #73807b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.memory-empty {
+  padding: 32px;
+  border: 1px dashed rgba(23, 40, 37, 0.16);
+  border-radius: 18px;
+  text-align: center;
+}
+
+.memory-message {
+  position: sticky;
+  bottom: 16px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #143d3a;
+  box-shadow: 0 12px 28px rgba(20, 61, 58, 0.22);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stage7-launcher {
+  position: fixed;
+  z-index: 54;
+  right: 18px;
+  bottom: 68px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 12px;
+  background: #7a4f2e;
+  box-shadow: 0 12px 28px rgba(65, 44, 29, 0.2);
+  color: #fff;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.stage7-launcher span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(255,255,255,0.13);
+}
+
+@media (max-width: 980px) {
+  .memory-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-sidebar {
+    position: static;
+    max-height: none;
+  }
+
+  .memory-meeting-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .memory-continuity-grid,
+  .memory-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-action-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .memory-action-row textarea {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .memory-shell {
+    width: calc(100% - 20px);
+    padding-top: 16px;
+  }
+
+  .memory-topbar,
+  .memory-record-head,
+  .memory-notes-card {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .memory-topbar nav,
+  .memory-head-actions {
+    width: 100%;
+  }
+
+  .memory-topbar nav a,
+  .memory-head-actions button {
+    flex: 1;
+    text-align: center;
+  }
+
+  .memory-meeting-list {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-action-row textarea {
+    grid-column: auto;
+  }
+
+  .stage7-launcher {
+    right: 12px;
+    bottom: 116px;
+  }
+}

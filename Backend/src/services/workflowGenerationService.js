@@ -54,6 +54,30 @@ function nonEmptyAnswers(meeting) {
     : [];
 }
 
+function previousMemorySummary(meeting) {
+  const previous = meeting?.previousMeetingMemory;
+  if (!previous) return '';
+  return cleanText(
+    previous.summary || previous.nextStep || (Array.isArray(previous.keyPoints) ? previous.keyPoints[0] : ''),
+    '',
+    220
+  );
+}
+
+function addPreCallContinuity(output, context = {}) {
+  const summary = previousMemorySummary(context.persistedContext);
+  if (!summary) return output;
+
+  const continuityItem = `Carry forward from the last meeting: ${summary}`;
+  const agenda = Array.isArray(output?.agenda) ? output.agenda.filter(Boolean) : [];
+  const alreadyPresent = agenda.some((item) => String(item).toLowerCase().includes(summary.toLowerCase().slice(0, 60)));
+  const nextAgenda = alreadyPresent
+    ? agenda.slice(0, 5)
+    : [agenda[0], continuityItem, ...agenda.slice(1)].filter(Boolean).slice(0, 5);
+
+  return { ...output, agenda: nextAgenda };
+}
+
 function buildFollowUpFallback(context = {}) {
   const meeting = context.persistedContext || {};
   const bookingUrl = cleanText(context.bookingUrl, 'the booking link I sent earlier', 1000);
@@ -73,6 +97,7 @@ function buildPreCallFallback(context = {}) {
   const answers = nonEmptyAnswers(meeting);
   const goal = cleanText(meeting.meetingGoal, 'Leave the call with a clear decision and next step.', 260);
   const type = meetingTypeKey(meeting);
+  const priorMemory = previousMemorySummary(meeting);
 
   let middle = 'Explore the guest context and the main problem behind this conversation.';
   let close = 'Agree the next step, owner, and timing before ending the call.';
@@ -91,9 +116,11 @@ function buildPreCallFallback(context = {}) {
     close = 'Decide whether there is a real fit and define the next commercial step.';
   }
 
+  const continuityAgenda = priorMemory ? [`Carry forward from the last meeting: ${priorMemory}`] : [];
   const contextAgenda = answers.slice(0, 2).map((item) => `Use guest context: ${cleanText(item.answer, '', 150)}`);
   const agenda = [
     `Open by confirming the goal: ${goal}`,
+    ...continuityAgenda,
     ...contextAgenda,
     middle,
     close,
@@ -102,7 +129,9 @@ function buildPreCallFallback(context = {}) {
   const strongestAnswer = cleanText(answers[0]?.answer, '', 130);
   const openingPrompt = strongestAnswer
     ? `Thanks for sharing that context beforehand. You mentioned ${strongestAnswer}. Can you walk me through what matters most there?`
-    : `Before we jump in, I want to make sure we use the time well. The goal I have for this call is: ${cleanText(goal, '', 150)}. What would make this conversation useful for you?`;
+    : priorMemory
+      ? `Last time, we left off with this context: ${priorMemory}. What has changed since then?`
+      : `Before we jump in, I want to make sure we use the time well. The goal I have for this call is: ${cleanText(goal, '', 150)}. What would make this conversation useful for you?`;
 
   return { goal, agenda, openingPrompt };
 }
@@ -208,7 +237,7 @@ function instructionsFor(kind) {
   if (kind === 'follow_up') {
     shared.push('Write a natural follow-up message for a pending meeting request. Preserve the booking URL exactly when one is supplied. Do not sound salesy or guilt the guest.');
   } else if (kind === 'pre_call') {
-    shared.push('Create a focused pre-call goal, at most five agenda items, and one natural opening prompt. Prioritize guest answers and the persisted meeting goal.');
+    shared.push('Create a focused pre-call goal, at most five agenda items, and one natural opening prompt. Prioritize guest answers, the persisted meeting goal, and prior same-attendee meeting memory when present.');
   } else if (kind === 'next_step') {
     shared.push('Suggest one concrete next step and a short follow-up timing/anchoring hint based on the outcome draft and persisted meeting context. Do not claim an agreement unless it appears in the supplied context.');
   }
@@ -262,7 +291,8 @@ async function callProvider(kind, context, fallback) {
 
 async function generateWorkflowArtifact({ kind, context = {} }) {
   const fallback = fallbackFor(kind, context);
-  return callProvider(kind, context, fallback);
+  const output = await callProvider(kind, context, fallback);
+  return kind === 'pre_call' ? addPreCallContinuity(output, context) : output;
 }
 
 module.exports = {
@@ -274,6 +304,8 @@ module.exports = {
     normalizeFollowUp,
     normalizePreCall,
     normalizeNextStep,
+    addPreCallContinuity,
+    previousMemorySummary,
     extractResponseText,
   },
 };

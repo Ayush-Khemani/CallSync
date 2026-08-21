@@ -7,6 +7,7 @@ const calendarRoutes = require('./routes/calendarRoutes');
 const integrationRoutes = require('./routes/integrationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const meetingRoutes = require('./routes/meetingRoutes');
+const memoryRoutes = require('./routes/memoryRoutes');
 const followUpRoutes = require('./routes/followUpRoutes');
 const outcomeRoutes = require('./routes/outcomeRoutes');
 const intelligenceRoutes = require('./routes/intelligenceRoutes');
@@ -70,6 +71,7 @@ app.use('/api', analyticsRoutes);
 app.use('/api', followUpRoutes);
 app.use('/api', outcomeRoutes);
 app.use('/api', intelligenceRoutes);
+app.use('/api', memoryRoutes);
 app.use('/api', meetingRoutes);
 
 app.use(errorHandler);
