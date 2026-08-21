@@ -13,26 +13,13 @@ const intelligenceRoutes = require('./routes/intelligenceRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const rateLimiter = require('./middleware/rateLimiter');
 const securityHeaders = require('./middleware/securityHeaders');
+const requestContext = require('./middleware/requestContext');
+const HttpError = require('./utils/httpError');
+const { isAllowedCorsOrigin } = require('./utils/corsPolicy');
 const { runMigrations } = require('./db/migrate');
 
 const app = express();
 let migrationPromise;
-
-function isAllowedCorsOrigin(origin) {
-  if (!origin) {
-    return true;
-  }
-
-  if (config.frontendUrls.includes(origin.replace(/\/$/, ''))) {
-    return true;
-  }
-
-  if (config.frontendOriginRegex) {
-    return new RegExp(config.frontendOriginRegex).test(origin);
-  }
-
-  return false;
-}
 
 function ensureMigrations() {
   if (!migrationPromise) {
@@ -45,6 +32,7 @@ function ensureMigrations() {
   return migrationPromise;
 }
 
+app.use(requestContext);
 app.use(cors({
   credentials: true,
   origin(origin, callback) {
@@ -53,7 +41,7 @@ app.use(cors({
       return;
     }
 
-    callback(new Error(`CORS origin not allowed: ${origin}`));
+    callback(new HttpError(403, 'CORS origin not allowed'));
   },
 }));
 app.use(express.json({ limit: '1mb' }));
