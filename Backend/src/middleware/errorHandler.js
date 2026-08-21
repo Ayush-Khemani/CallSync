@@ -1,13 +1,15 @@
-function errorHandler(error, req, res, next) {
+function errorHandler(error, req, res, next) { // eslint-disable-line no-unused-vars
   const statusCode = error.statusCode || 500;
-  const message = statusCode >= 500 ? 'Internal server error' : error.message;
+  const isServerError = statusCode >= 500;
+  const message = isServerError ? 'Internal server error' : error.message;
 
-  if (statusCode >= 500) {
+  if (isServerError) {
     const upstreamCode = typeof error.response?.data?.error === 'string'
       ? error.response.data.error
       : undefined;
 
     console.error('Unhandled request error', {
+      requestId: req.requestId,
       name: error.name,
       message: error.message,
       code: error.code,
@@ -19,7 +21,10 @@ function errorHandler(error, req, res, next) {
     });
   }
 
-  res.status(statusCode).json({ error: message });
+  res.status(statusCode).json({
+    error: message,
+    ...(isServerError ? { requestId: req.requestId } : {}),
+  });
 }
 
 module.exports = errorHandler;

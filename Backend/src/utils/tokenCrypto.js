@@ -10,37 +10,49 @@ function getKey() {
   if (key.length !== 32) {
     throw new Error('TOKEN_ENCRYPTION_KEY must be a base64-encoded 32-byte key');
   }
+
   return key;
 }
 
-function encryptToken(value) {
+function encryptToken(token) {
+  if (!token) return token;
   const key = getKey();
-  if (!value || !key) {
-    return value;
-  }
+  if (!key) return token;
 
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
 
   return `enc:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted.toString('base64')}`;
 }
 
 function decryptToken(value) {
+  if (!value) return value;
+  const encrypted = value.startsWith('enc:');
+  if (!encrypted) return value;
+
   const key = getKey();
-  if (!value || !key || !value.startsWith('enc:')) {
-    return value;
+  if (!key) {
+    throw new Error('TOKEN_ENCRYPTION_KEY is required to decrypt stored OAuth tokens');
   }
 
-  const [, ivText, tagText, encryptedText] = value.split(':');
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivText, 'base64'));
-  decipher.setAuthTag(Buffer.from(tagText, 'base64'));
+  const parts = value.split(':');
+  if (parts.length !== 4) {
+    throw new Error('Stored OAuth token has an invalid encrypted format');
+  }
 
-  return Buffer.concat([
-    decipher.update(Buffer.from(encryptedText, 'base64')),
-    decipher.final(),
-  ]).toString('utf8');
+  const [, ivBase64, tagBase64, encryptedBase64] = parts;
+  const iv = Buffer.from(ivBase64, 'base64');
+  const tag = Buffer.from(tagBase64, 'base64');
+  const encryptedBuffer = Buffer.from(encryptedBase64, 'base64');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]).toString('utf8');
 }
 
-module.exports = { encryptToken, decryptToken };
+function tokenEncryptionConfigured() {
+  return Boolean(config.tokenEncryptionKey);
+}
+
+module.exports = { encryptToken, decryptToken, tokenEncryptionConfigured };
