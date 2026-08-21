@@ -83,6 +83,19 @@ test('CORS preflight allows configured Vercel deployment origins', async () => {
   );
 });
 
+test('CORS rejects unrelated origins as a clean client error', async () => {
+  const response = await request('OPTIONS', '/api/auth/register', null, {
+    Origin: 'https://untrusted.example',
+    'Access-Control-Request-Method': 'POST',
+    'x-request-id': 'cors-block-123',
+  });
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.headers['x-request-id'], 'cors-block-123');
+  assert.deepEqual(response.body, { error: 'CORS origin not allowed' });
+  assert.equal(JSON.stringify(response.body).includes('untrusted.example'), false);
+});
+
 test('protected meeting creation rejects missing auth token', async () => {
   const response = await request('POST', '/api/meetings/create', {
     attendeeEmail: 'guest@example.com',
