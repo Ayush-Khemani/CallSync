@@ -22,6 +22,14 @@ export function getFollowUpRisk(meeting, now = Date.now()) {
     };
   }
 
+  if (meeting.requestEmailSentAt === null) {
+    return {
+      level: 'high',
+      label: 'Email delivery unconfirmed',
+      detail: 'CallSync could not confirm the request email was sent. Copy the booking link and send it to the guest manually.',
+    };
+  }
+
   const dueAt = asTime(meeting.nextFollowUpAt) || defaultDueTime(meeting);
   const delta = now - dueAt;
 
