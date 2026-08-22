@@ -1,4 +1,4 @@
-import { getConnectionCopy } from './CalendarConnectionStatus';
+import { getConnectionCopy } from './calendarConnectionStatusLogic';
 
 describe('calendar connection status copy', () => {
   test('shows connected Google state with Gmail sending', () => {
