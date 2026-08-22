@@ -46,8 +46,6 @@ module.exports = {
   jwtSecret,
   getJwtSecret,
   tokenEncryptionKey: optionalEnv('TOKEN_ENCRYPTION_KEY', ''),
-  sendgridApiKey: optionalEnv('SENDGRID_API_KEY', ''),
-  emailFrom: optionalEnv('EMAIL_FROM', 'no-reply@callsync.local'),
   openaiApiKey: optionalEnv('OPENAI_API_KEY', ''),
   openaiModel: optionalEnv('OPENAI_MODEL', 'gpt-5.6-luna'),
   google: {
