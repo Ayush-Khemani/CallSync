@@ -8,7 +8,7 @@
     "dev": "nodemon src/server.js",
     "check": "node scripts/check-syntax.js",
     "test": "node tests/app.test.js && node tests/calendarService.test.js && node tests/generationService.test.js && node tests/workflowGenerationService.test.js && node tests/mailService.test.js && node tests/meetingRequestDeliveryService.test.js && node tests/availabilityIntelligence.test.js && node tests/analyticsService.test.js && node tests/observabilitySecurity.test.js && node tests/requestContext.test.js && node tests/memoryGenerationService.test.js",
-    "test:integration": "node tests/integration.test.js && node tests/connectedMail.integration.test.js && node tests/analytics.integration.test.js && node tests/memory.integration.test.js",
+    "test:integration": "node tests/integration.test.js && node tests/bookingFailure.integration.test.js && node tests/connectedMail.integration.test.js && node tests/analytics.integration.test.js && node tests/memory.integration.test.js",
     "migrate": "node src/db/migrate.js"
   },
   "keywords": [],
