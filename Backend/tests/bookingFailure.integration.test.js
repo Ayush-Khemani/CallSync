@@ -129,9 +129,9 @@ async function createMeeting(headers, suffix) {
   }, headers);
 }
 
-function assertSafeProviderFailure(response) {
+function assertSafeProviderFailure(response, expectedMessage) {
   assert.equal(response.statusCode, 502);
-  assert.equal(response.body.error, 'Internal server error');
+  assert.equal(response.body.error, expectedMessage);
   assert.equal(typeof response.body.requestId, 'string');
   assert.equal(response.body.requestId.length > 0, true);
 }
@@ -145,7 +145,10 @@ test('hold creation failure removes the request before any email is sent', async
   behavior.failHoldAt = 2;
 
   const response = await createMeeting(host.headers, 'hold-failure');
-  assertSafeProviderFailure(response);
+  assertSafeProviderFailure(
+    response,
+    'Could not protect every offered slot on your connected calendars. No meeting request was sent.'
+  );
   assert.equal(calls.requestEmail, 0);
 
   const meetings = await pool.query('SELECT COUNT(*)::int AS count FROM meetings WHERE user_id = $1', [host.userId]);
@@ -167,7 +170,10 @@ test('selected hold promotion failure restores pending state and sends no confir
     slotId: publicMeeting.body.slots[0].id,
   });
 
-  assertSafeProviderFailure(response);
+  assertSafeProviderFailure(
+    response,
+    'Calendar synchronization failed before the booking could be finalized. Please choose the slot again.'
+  );
   assert.equal(calls.confirmationEmail, 0);
 
   const meeting = await pool.query('SELECT status, selected_slot, guest_answers FROM meetings WHERE unique_link = $1', [created.body.uniqueLink]);
