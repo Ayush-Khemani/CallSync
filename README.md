@@ -1,42 +1,52 @@
 # CallSync
 
-CallSync is a lightweight meeting CRM for high-value calls. It helps a host turn interested replies into booked, prepared, and followed-up meetings.
+CallSync is a lightweight meeting operating system for high-value calls.
 
-The production direction is not "another scheduling link." CallSync should own the meeting lifecycle: create a focused invite, offer curated availability, track booking status, surface follow-up risk, prepare the host, and capture what happened after the call.
+> Turn an interested conversation into a booked, prepared, completed, remembered, and followed-up meeting.
 
-See [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md) for the staged production roadmap.
+Calendar sync is infrastructure; the durable meeting record and lifecycle are the product.
 
-## Current Product Scope
+See:
 
-- Email/password authentication
-- Google Calendar OAuth callback
-- Outlook Calendar OAuth callback
-- Availability lookup across connected calendars
-- Meeting request creation
-- Assisted meeting setup with intent-based templates
-- Persistent meeting briefs with type, goal, invite copy, qualification questions, and private host notes
-- Guest qualification answers stored during public booking
-- Meeting brief and guest context visible on the host dashboard
-- Meeting pipeline dashboard
-- Public booking link
-- Slot selection and confirmation
-- Email notifications through the SendGrid HTTPS API
-- Postgres persistence
+- [Product roadmap](docs/PRODUCT_ROADMAP.md)
+- [Current roadmap status](docs/ROADMAP_STATUS_2026-08-23.md)
+- [Microsoft OAuth production setup](docs/MICROSOFT_OAUTH_SETUP.md)
+- [OAuth token-encryption rollout](Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md)
 
-## Why This Project Matters
+## Current product scope
 
-Scheduling is a real workflow problem. Teams, students, recruiters, founders, and clients all lose time coordinating meetings. CallSync can become a polished productivity product because the core value is easy to understand:
+CallSync currently includes:
 
-> Turn interested replies into booked, prepared, and followed-up meetings.
+- email/password authentication;
+- Google Calendar and Outlook Calendar OAuth connections;
+- explicit connected/not-connected calendar state in the Calendars workspace;
+- combined availability across Google and Outlook;
+- fail-closed calendar reads when a connected provider cannot be verified;
+- privacy-safe best-fit slot ranking and conflict counts;
+- duration, work-window, interval, and buffer controls;
+- private/busy host-only temporary calendar holds;
+- meeting-request delivery from the host's connected Gmail or Outlook mailbox;
+- public guest booking and qualification questions;
+- selected-hold promotion into the real attendee meeting;
+- unused-hold cleanup and cancellation cleanup;
+- meeting pipeline and lifecycle analytics;
+- editable AI-assisted meeting briefs with deterministic fallback;
+- editable follow-up, pre-call, opening-prompt, and next-step suggestions;
+- connected Gmail/Outlook follow-up sending;
+- post-call outcome capture;
+- durable meeting memory with raw notes kept separate from derived memory;
+- repeated-attendee relationship continuity;
+- request correlation IDs, hardened public health diagnostics, CORS enforcement, and OAuth token-encryption support.
 
-## Repository Layout
+Real-provider production activation is tracked separately from source completion in GitHub issues #14 and #23.
 
-```txt
+## Repository layout
+
+```text
 CallSync/
   Backend/
     migrations/
-      001_initial_schema.sql
-      002_persistent_meeting_briefs.sql
+    scripts/
     src/
       config/
       db/
@@ -44,32 +54,46 @@ CallSync/
       routes/
       services/
       utils/
+    tests/
     index.js
+    package.json
     vercel.json
-    package.json
   frontend/
-    src/
     public/
+    src/
     package.json
+    vercel.json
+  docs/
 ```
 
-## Backend Architecture
+## Backend architecture
 
-The backend has been split away from the original single-file prototype:
+- `Backend/src/app.js` configures Express, CORS, JSON parsing, routes, request context, and error handling.
+- `Backend/src/server.js` starts the local/long-running server.
+- `Backend/index.js` exports the Vercel handler.
+- `Backend/src/config/env.js` centralizes environment configuration.
+- `Backend/src/db/*` owns Postgres pooling and migrations.
+- `Backend/src/routes/*` owns the HTTP API.
+- `Backend/src/services/calendarService.js` owns Google/Outlook calendar behavior and token refresh.
+- `Backend/src/services/mailService.js` owns narrow connected Gmail/Outlook sending.
+- `Backend/src/services/generationService.js`, `workflowGenerationService.js`, and `memoryGenerationService.js` provide server-side AI assistance with deterministic fallback.
+- `Backend/src/utils/tokenCrypto.js` provides AES-256-GCM OAuth token encryption when `TOKEN_ENCRYPTION_KEY` is configured.
 
-- `src/app.js` configures Express, CORS, JSON parsing, routes, and error handling.
-- `src/server.js` runs migrations and starts the local/long-running server.
-- `index.js` exports the Vercel handler and can run idempotent migrations on the first serverless request.
-- `src/config/env.js` centralizes environment configuration.
-- `src/db/pool.js` owns Postgres connection pooling.
-- `src/db/migrate.js` loads all SQL migrations in filename order.
-- `src/routes/*` owns HTTP endpoints.
-- `src/services/*` owns calendar, email, and availability logic.
-- `src/utils/tokenCrypto.js` encrypts calendar access tokens when `TOKEN_ENCRYPTION_KEY` is configured.
+## Reliability contracts
+
+CallSync intentionally treats external-provider correctness as a release requirement:
+
+- connected-calendar availability fails closed rather than showing a falsely free day;
+- meeting requests are not sent if every offered slot cannot be protected by calendar holds;
+- a failed selected-hold promotion does not leave CallSync falsely confirmed;
+- confirmation-email failure does not undo a calendar-confirmed booking, but delivery state remains explicit;
+- cancellation surfaces incomplete provider cleanup;
+- unexpected server errors remain generic to clients and carry a request ID for log correlation;
+- AI provider failures/malformed responses fall back to grounded deterministic output.
 
 ## Verification
 
-Backend:
+Backend unit checks:
 
 ```bash
 cd Backend
@@ -84,7 +108,7 @@ cd Backend
 TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/callsync_test npm run test:integration
 ```
 
-The integration test database is reset with `TRUNCATE ... CASCADE`, so point `TEST_DATABASE_URL` only at a disposable test database.
+The integration database is reset with `TRUNCATE ... CASCADE`; use only a disposable test database.
 
 Frontend:
 
@@ -94,7 +118,7 @@ npm test -- --watchAll=false --runInBand
 npm run build
 ```
 
-## Local Setup
+## Local setup
 
 Backend:
 
@@ -114,12 +138,6 @@ cp .env.example .env
 npm start
 ```
 
-Generate a token encryption key:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-
 Run database migrations:
 
 ```bash
@@ -127,89 +145,82 @@ cd Backend
 npm run migrate
 ```
 
-## Deployment
+Generate a 32-byte token-encryption key when preparing the encryption rollout:
 
-Production now targets Vercel and Supabase instead of Render.
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
 
-Supabase:
+Then follow [Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md](Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md); do not blindly enable encryption without the dry-run/migration verification.
 
-- Create a Supabase project under the `Sing` organization.
-- Use the Supabase pooled Postgres connection string for `DATABASE_URL`.
-- The backend can auto-run the SQL in `Backend/migrations` on first request when `AUTO_RUN_MIGRATIONS` is not `false`.
-- Keep Supabase service role and secret keys out of the frontend. CallSync only needs the Postgres connection string on the backend.
+## Environment variables
 
-Backend on Vercel:
+### Backend
 
-- Create a Vercel project named `callsync-backend` with `Backend` as the project root.
-- Use Vercel's Node backend support; `Backend/index.js` exports the request handler.
-- Set production environment variables in Vercel: `DATABASE_URL`, `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `FRONTEND_URL`, `FRONTEND_URLS`, `SENDGRID_API_KEY`, `EMAIL_FROM`, Google OAuth credentials, and Outlook OAuth credentials.
-- For multiple frontend deployments, set `FRONTEND_URLS` to a comma-separated list of allowed origins, such as `https://call-sync-livid.vercel.app,https://call-sync-d5py7xx4o-ayush-khemanis-projects.vercel.app`.
-- For temporary Vercel preview deployments, `FRONTEND_ORIGIN_REGEX` can allow matching frontend URLs, such as `^https://call-sync-[a-z0-9-]+\\.vercel\\.app$`. Prefer exact `FRONTEND_URLS` for stable production domains.
-- Set `AUTO_RUN_MIGRATIONS=true` for the first production deploy. After the schema is confirmed, it can remain enabled for the current idempotent migrations or be set to `false` after running migrations manually.
-- Verify with `/api/health`.
+Core:
 
-Frontend on Vercel:
-
-- Create a Vercel project named `callsync-frontend` with `frontend` as the project root.
-- Set `REACT_APP_API_URL` to the deployed backend URL.
-- Set Google and Outlook client IDs.
-- `frontend/vercel.json` keeps client-side routes working on refresh.
-
-## Required Environment Variables
-
-Backend:
-
-- `DATABASE_URL`
+- `DATABASE_URL` (or `DATABASE_URL_V2`)
 - `JWT_SECRET`
-- `TOKEN_ENCRYPTION_KEY`
 - `FRONTEND_URL`
 - `FRONTEND_URLS`
 - `FRONTEND_ORIGIN_REGEX`
 - `AUTO_RUN_MIGRATIONS`
-- `SENDGRID_API_KEY`
-- `EMAIL_FROM`
+
+Google:
+
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
+
+Microsoft:
+
 - `OUTLOOK_CLIENT_ID`
 - `OUTLOOK_CLIENT_SECRET`
 - `OUTLOOK_REDIRECT_URI`
 
-Frontend:
+Generation:
+
+- `OPENAI_API_KEY` — optional; deterministic fallback remains available without it
+- `OPENAI_MODEL` — optional model override
+
+Security rollout:
+
+- `TOKEN_ENCRYPTION_KEY` — base64-encoded 32-byte key; configure only as part of the documented migration rollout
+
+### Frontend
 
 - `REACT_APP_API_URL`
 - `REACT_APP_GOOGLE_CLIENT_ID`
 - `REACT_APP_OUTLOOK_CLIENT_ID`
 
-## Production Gaps Still To Close
+## Production deployment
 
-- Add follow-up status, reminders, and "mark followed up" actions.
-- Add pre-call brief views for upcoming booked meetings.
-- Add post-call outcomes and next-step tracking.
-- Add rescheduling flows.
-- Add link expiry.
-- Add request validation middleware.
-- Expand backend integration tests around calendar refresh, persistent meeting context, and booking edge cases.
-- Add observability through Sentry or similar.
-- Add real AI generation once the workflow data model is reliable.
+Current production targets Vercel for the frontend/backend and Postgres for persistence.
 
-## AI Roadmap
+Stable production aliases:
 
-The best AI additions are workflow-specific:
+- frontend: `https://call-sync-livid.vercel.app`
+- backend: `https://call-sync-irsv.vercel.app`
 
-- Natural language meeting creation: "Create a 30-minute investor intro next week after 2 PM and ask what fund they are from."
-- Smart slot ranking based on working hours, calendar density, and meeting buffers.
-- Invite email drafting and follow-up reminders tied to meeting status.
-- Pre-call briefs based on guest answers and meeting intent.
-- Conflict explanations: why a time was not suggested.
-- Weekly meeting pipeline summary for the host.
+For OAuth, the provider redirect URI must match the frontend callback origin exactly. Microsoft personal-account support additionally requires the Entra configuration documented in [docs/MICROSOFT_OAUTH_SETUP.md](docs/MICROSOFT_OAUTH_SETUP.md).
 
-## Presentation Plan
+Public operational checks:
 
-For portfolio/public launch:
+- `/api/health`
+- `/api/health/db`
 
-1. Add screenshots of login, calendar connection, meeting creation, public booking, and confirmation.
-2. Add an architecture diagram.
-3. Deploy frontend and backend.
-4. Create a demo mode with fake calendar data.
-5. Write a case study explaining the production hardening work.
+`/api/health/db` intentionally exposes only safe service/database reachability information and commit correlation—not database hosts or raw provider/database errors.
+
+## Release state
+
+The implementation stack through Stage 7 is shipped. Current work is focused on production activation and reliability rather than adding another large feature stage.
+
+Priority order:
+
+1. finish Priority 0 Google/Outlook real-provider verification;
+2. verify provider-backed AI generation and deterministic fallback in production;
+3. verify connected Gmail/Outlook follow-up sending;
+4. validate coordination intelligence and lifecycle analytics against real records;
+5. execute the OAuth token-encryption rollout safely;
+6. verify durable meeting memory and repeated-attendee continuity in production;
+7. define the paid-product boundary only after repeated product value is demonstrated.
