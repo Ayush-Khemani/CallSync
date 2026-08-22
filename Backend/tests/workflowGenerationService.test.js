@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 delete process.env.OPENAI_API_KEY;
 process.env.NODE_ENV = 'test';
 
+const axios = require('axios');
+const config = require('../src/config/env');
 const { generateWorkflowArtifact, _test } = require('../src/services/workflowGenerationService');
 
 const tests = [];
@@ -36,6 +38,78 @@ test('follow-up fallback uses persisted guest context and touch count', async ()
   assert.match(first.message, /https:\/\/callsync\.example\/select-slot\/abc/);
   assert.match(first.message, /just following up/i);
   assert.match(later.message, /one more quick follow-up/i);
+});
+
+test('workflow provider outage preserves grounded deterministic output', async () => {
+  const originalKey = config.openaiApiKey;
+  const originalPost = axios.post;
+  config.openaiApiKey = 'test-provider-key';
+  axios.post = async () => {
+    const error = new Error('simulated workflow provider outage');
+    error.response = { status: 503 };
+    throw error;
+  };
+
+  const followUpContext = {
+    bookingUrl: 'https://callsync.example/select-slot/fallback',
+    persistedContext: {
+      attendeeName: 'Maya Chen',
+      meetingType: 'Investor meeting',
+      followUpCount: 1,
+    },
+  };
+  const preCallContext = {
+    persistedContext: {
+      meetingType: 'Customer discovery',
+      meetingGoal: 'Confirm implementation fit.',
+      guestAnswers: [{ question: 'Main blocker?', answer: 'Security review is still pending.' }],
+      previousMeetingMemory: { summary: 'The buyer asked for a technical proposal.' },
+    },
+  };
+  const nextStepContext = {
+    happened: true,
+    useful: true,
+    notes: 'They asked for the security checklist before the next call.',
+    persistedContext: { meetingType: 'Customer discovery' },
+  };
+
+  try {
+    const followUp = await generateWorkflowArtifact({ kind: 'follow_up', context: followUpContext });
+    const preCall = await generateWorkflowArtifact({ kind: 'pre_call', context: preCallContext });
+    const nextStep = await generateWorkflowArtifact({ kind: 'next_step', context: nextStepContext });
+
+    assert.deepEqual(followUp, _test.buildFollowUpFallback(followUpContext));
+    assert.equal(preCall.agenda.some((item) => /technical proposal/i.test(item)), true);
+    assert.equal(preCall.agenda.some((item) => /Security review is still pending/i.test(item)), true);
+    assert.deepEqual(nextStep, _test.buildNextStepFallback(nextStepContext));
+  } finally {
+    axios.post = originalPost;
+    config.openaiApiKey = originalKey;
+  }
+});
+
+test('malformed workflow provider output falls back without leaking a parsing failure', async () => {
+  const originalKey = config.openaiApiKey;
+  const originalPost = axios.post;
+  config.openaiApiKey = 'test-provider-key';
+  axios.post = async () => ({ data: { output_text: '{bad-json' } });
+
+  const context = {
+    bookingUrl: 'https://callsync.example/select-slot/abc',
+    persistedContext: {
+      attendeeName: 'Maya Chen',
+      meetingType: 'Investor meeting',
+      followUpCount: 0,
+    },
+  };
+
+  try {
+    const output = await generateWorkflowArtifact({ kind: 'follow_up', context });
+    assert.deepEqual(output, _test.buildFollowUpFallback(context));
+  } finally {
+    axios.post = originalPost;
+    config.openaiApiKey = originalKey;
+  }
 });
 
 test('pre-call fallback prioritizes persisted guest answers', async () => {
