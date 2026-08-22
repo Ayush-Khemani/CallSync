@@ -10,6 +10,7 @@ import Stage5Prep, { Stage5Launcher } from './Stage5Prep';
 import Stage6CHealth from './Stage6CHealth';
 import Stage7Memory, { Stage7Launcher } from './Stage7Memory';
 import OAuthCallbackPage from './OAuthCallbackPage';
+import CalendarConnectionStatus from './CalendarConnectionStatus';
 import reportWebVitals from './reportWebVitals';
 
 const NAVIGATION_EVENT = 'callsync:navigation';
@@ -42,7 +43,7 @@ function RootApp() {
   if (pathname === '/') return <LandingPageV6 />;
   if (pathname === '/prepare') return <><Stage5Prep /><Stage7Launcher /></>;
   if (pathname === '/memory') return <Stage7Memory />;
-  if (pathname === '/dashboard') return <><Stage4Product /><Stage5Launcher /><Stage6CHealth /><Stage7Launcher /></>;
+  if (pathname === '/dashboard') return <><Stage4Product /><Stage5Launcher /><Stage6CHealth /><Stage7Launcher /><CalendarConnectionStatus /></>;
   if (pathname.startsWith('/select-slot/')) return <Stage4Product />;
   if (pathname === '/auth/google') return <OAuthCallbackPage provider="google" />;
   if (pathname === '/auth/outlook') return <OAuthCallbackPage provider="outlook" />;
