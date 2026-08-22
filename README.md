@@ -11,7 +11,7 @@ See:
 - [Product roadmap](docs/PRODUCT_ROADMAP.md)
 - [Current roadmap status](docs/ROADMAP_STATUS_2026-08-23.md)
 - [Microsoft OAuth production setup](docs/MICROSOFT_OAUTH_SETUP.md)
-- [OAuth token-encryption rollout](docs/TOKEN_ENCRYPTION_ROLLOUT.md)
+- [OAuth token-encryption rollout](Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md)
 
 ## Current product scope
 
@@ -151,7 +151,7 @@ Generate a 32-byte token-encryption key when preparing the encryption rollout:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-Then follow [docs/TOKEN_ENCRYPTION_ROLLOUT.md](docs/TOKEN_ENCRYPTION_ROLLOUT.md); do not blindly enable encryption without the dry-run/migration verification.
+Then follow [Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md](Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md); do not blindly enable encryption without the dry-run/migration verification.
 
 ## Environment variables
 
