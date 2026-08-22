@@ -34,7 +34,9 @@ export function getConnectionCopy(provider, status = {}) {
 
 function beginOAuth(provider) {
   const isGoogle = provider === 'google';
-  const clientId = process.env[isGoogle ? 'REACT_APP_GOOGLE_CLIENT_ID' : 'REACT_APP_OUTLOOK_CLIENT_ID'];
+  const clientId = isGoogle
+    ? process.env.REACT_APP_GOOGLE_CLIENT_ID
+    : process.env.REACT_APP_OUTLOOK_CLIENT_ID;
   if (!clientId) return false;
 
   const params = new URLSearchParams({
@@ -81,6 +83,7 @@ export default function CalendarConnectionStatus() {
 
   const loadStatus = useCallback(async () => {
     if (!localStorage.getItem('token')) return;
+    setLoading(true);
     try {
       setError('');
       const response = await axios.get(`${API_URL}/api/integrations/status`, { headers: authHeaders() });
