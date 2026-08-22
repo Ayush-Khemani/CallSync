@@ -1,7 +1,8 @@
 function errorHandler(error, req, res, next) { // eslint-disable-line no-unused-vars
   const statusCode = error.statusCode || 500;
   const isServerError = statusCode >= 500;
-  const message = isServerError ? 'Internal server error' : error.message;
+  const canExposeMessage = !isServerError || error.expose === true;
+  const message = canExposeMessage ? error.message : 'Internal server error';
 
   if (isServerError) {
     const upstreamCode = typeof error.response?.data?.error === 'string'
