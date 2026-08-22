@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../db/pool');
+const config = require('../config/env');
 const authMiddleware = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
@@ -29,6 +30,10 @@ router.get('/integrations/status', authMiddleware, asyncHandler(async (req, res)
     outlook: {
       calendarConnected: outlook.connected,
       mailSendEnabled: outlook.connected && outlookMailScopeEnabled(outlook.scopes),
+    },
+    generation: {
+      providerConfigured: Boolean(config.openaiApiKey),
+      deterministicFallbackAvailable: true,
     },
   });
 }));

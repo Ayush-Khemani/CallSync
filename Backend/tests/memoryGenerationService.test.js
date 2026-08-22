@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 delete process.env.OPENAI_API_KEY;
 process.env.NODE_ENV = 'test';
 
+const axios = require('axios');
+const config = require('../src/config/env');
 const { generateMeetingMemory, _test } = require('../src/services/memoryGenerationService');
 
 const tests = [];
@@ -27,6 +29,60 @@ test('memory fallback derives only from captured notes and persisted outcome con
   assert.equal(output.actionItems.some((item) => /schedule a technical follow-up/i.test(item.task)), true);
   assert.equal(output.unansweredQuestions.some((item) => /security team/i.test(item)), true);
   assert.equal(output.actionItems.every((item) => item.owner === '' && item.dueAt === ''), true);
+});
+
+test('meeting memory provider outage falls back to captured notes without inventing facts', async () => {
+  const originalKey = config.openaiApiKey;
+  const originalPost = axios.post;
+  config.openaiApiKey = 'test-provider-key';
+  axios.post = async () => {
+    const error = new Error('simulated memory provider outage');
+    error.response = { status: 503 };
+    throw error;
+  };
+
+  const context = {
+    notes: [
+      'The customer confirmed the security review is blocking rollout.',
+      'Action: send the security checklist.',
+      'Who should join the next technical review?',
+    ].join('\n'),
+    persistedContext: {
+      meetingGoal: 'Unblock implementation.',
+      outcomeNotes: 'They need the checklist before scheduling another call.',
+    },
+  };
+
+  try {
+    const expected = _test.buildMemoryFallback(context);
+    const output = await generateMeetingMemory(context);
+    assert.deepEqual(output, expected);
+    assert.equal(output.actionItems.every((item) => item.owner === '' && item.dueAt === ''), true);
+    assert.equal(JSON.stringify(output).includes('simulated memory provider outage'), false);
+  } finally {
+    axios.post = originalPost;
+    config.openaiApiKey = originalKey;
+  }
+});
+
+test('malformed meeting memory provider output uses deterministic memory instead of failing', async () => {
+  const originalKey = config.openaiApiKey;
+  const originalPost = axios.post;
+  config.openaiApiKey = 'test-provider-key';
+  axios.post = async () => ({ data: { output_text: '{invalid-json' } });
+
+  const context = {
+    notes: 'Action: send the implementation outline. What is the target launch date?',
+    persistedContext: { meetingGoal: 'Plan implementation.' },
+  };
+
+  try {
+    const output = await generateMeetingMemory(context);
+    assert.deepEqual(output, _test.buildMemoryFallback(context));
+  } finally {
+    axios.post = originalPost;
+    config.openaiApiKey = originalKey;
+  }
 });
 
 test('memory fallback does not invent content when notes are empty', () => {

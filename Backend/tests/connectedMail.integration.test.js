@@ -61,8 +61,12 @@ function request(method, path, body, headers = {}) {
   assert.deepEqual(status.body, {
     google: { calendarConnected: false, mailSendEnabled: false },
     outlook: { calendarConnected: false, mailSendEnabled: false },
+    generation: { providerConfigured: false, deterministicFallbackAvailable: true },
   });
-  console.log('ok - disconnected integration capabilities are explicit');
+  const statusJson = JSON.stringify(status.body).toLowerCase();
+  assert.equal(statusJson.includes('apikey'), false);
+  assert.equal(statusJson.includes('model'), false);
+  console.log('ok - disconnected integration and safe generation capabilities are explicit');
 
   const created = await request('POST', '/api/meetings/create', {
     attendeeEmail: 'mail-guest@example.com',

@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 delete process.env.OPENAI_API_KEY;
 process.env.NODE_ENV = 'test';
 
+const axios = require('axios');
+const config = require('../src/config/env');
 const { generateWorkflowContent, _test } = require('../src/services/generationService');
 
 const tests = [];
@@ -29,6 +31,54 @@ test('meeting brief fallback preserves deterministic investor workflow', async (
   assert.equal(output.formPatch.selectedDate, '2026-08-26');
   assert.equal(output.brief.questions.some((question) => question.toLowerCase().includes('timeline')), true);
   assert.equal(output.brief.questions.length <= 5, true);
+});
+
+test('meeting brief provider failure returns the same grounded deterministic fallback', async () => {
+  const originalKey = config.openaiApiKey;
+  const originalPost = axios.post;
+  config.openaiApiKey = 'test-provider-key';
+  axios.post = async () => {
+    const error = new Error('simulated provider outage');
+    error.response = { status: 503 };
+    throw error;
+  };
+
+  const context = {
+    prompt: 'Set up a 45 minute recruiting screen with Maya Chen maya@example.com tomorrow morning.',
+    now: '2026-08-19T12:00:00.000Z',
+  };
+
+  try {
+    const expected = _test.buildMeetingBriefFallback(context);
+    const output = await generateWorkflowContent({ kind: 'meeting_brief', context });
+    assert.deepEqual(output, expected);
+    assert.equal(output.formPatch.attendeeEmail, 'maya@example.com');
+    assert.equal(output.brief.type, 'Candidate screen');
+  } finally {
+    axios.post = originalPost;
+    config.openaiApiKey = originalKey;
+  }
+});
+
+test('meeting brief malformed provider output falls back instead of failing the request', async () => {
+  const originalKey = config.openaiApiKey;
+  const originalPost = axios.post;
+  config.openaiApiKey = 'test-provider-key';
+  axios.post = async () => ({ data: { output_text: '{not-json' } });
+
+  const context = {
+    prompt: 'Create a 30 minute client kickoff tomorrow afternoon.',
+    now: '2026-08-19T12:00:00.000Z',
+  };
+
+  try {
+    const expected = _test.buildMeetingBriefFallback(context);
+    const output = await generateWorkflowContent({ kind: 'meeting_brief', context });
+    assert.deepEqual(output, expected);
+  } finally {
+    axios.post = originalPost;
+    config.openaiApiKey = originalKey;
+  }
 });
 
 test('normalization keeps model output inside supported meeting controls', () => {
