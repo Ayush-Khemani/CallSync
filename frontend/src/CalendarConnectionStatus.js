@@ -1,35 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
+import { EMPTY_INTEGRATION_STATUS, getConnectionCopy } from './calendarConnectionStatusLogic';
 import './CalendarConnectionStatus.css';
 
 const API_URL = (process.env.REACT_APP_API_URL || 'https://callsync-backend.vercel.app').replace(/\/$/, '');
 
-export const EMPTY_INTEGRATION_STATUS = {
-  google: { calendarConnected: false, mailSendEnabled: false },
-  outlook: { calendarConnected: false, mailSendEnabled: false },
-};
-
 function authHeaders() {
   const token = localStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-export function getConnectionCopy(provider, status = {}) {
-  const connected = Boolean(status.calendarConnected);
-  const mailEnabled = Boolean(status.mailSendEnabled);
-  const providerName = provider === 'google' ? 'Google Calendar' : 'Outlook Calendar';
-  const mailName = provider === 'google' ? 'Gmail' : 'Outlook Mail';
-
-  return {
-    providerName,
-    stateLabel: connected ? 'Connected' : 'Not connected',
-    actionLabel: connected ? 'Reconnect' : `Connect ${providerName}`,
-    detail: connected
-      ? `${providerName} is active${mailEnabled ? ` · ${mailName} sending enabled` : ` · ${mailName} sending needs permission`}`
-      : `Connect ${providerName} to use it for availability and meeting holds.`,
-    connected,
-    mailEnabled,
-  };
 }
 
 function beginOAuth(provider) {
