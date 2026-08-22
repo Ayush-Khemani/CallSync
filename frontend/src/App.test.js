@@ -65,6 +65,26 @@ test('scores pending invite follow-up risk', () => {
   });
 });
 
+test('surfaces unconfirmed request email delivery immediately', () => {
+  const now = Date.now();
+  const meeting = {
+    id: 11,
+    status: 'pending',
+    createdAt: new Date(now).toISOString(),
+    requestEmailSentAt: null,
+  };
+
+  expect(getFollowUpRisk(meeting, now)).toMatchObject({
+    level: 'high',
+    label: 'Email delivery unconfirmed',
+  });
+  expect(getFollowUpRisk(meeting, now).detail).toContain('Copy the booking link');
+
+  const stages = getMeetingPipelineStages([meeting]);
+  expect(stages.find((stage) => stage.id === 'followUp').meetings.map((item) => item.id)).toEqual([11]);
+  expect(stages.find((stage) => stage.id === 'pending').meetings).toEqual([]);
+});
+
 test('keeps host meeting actions explicit by status', () => {
   expect(getMeetingActionState({ status: 'pending' })).toMatchObject({
     canCancel: true,
