@@ -4,164 +4,218 @@ This snapshot records the current implementation/release state against `docs/PRO
 
 ## Current baseline
 
-- Source through Stage 7 remains shipped on `main`.
-- PR #25 replaced the meeting-request/confirmation SendGrid runtime dependency with the host's connected Gmail/Outlook mailbox path.
-- PR #26 added live calendar connection state; PR #27 corrected the placement so status now lives inside the existing Dashboard → Calendars Google/Outlook cards rather than a floating dashboard dock.
-- PR #28 added database-backed Priority 0 provider failure-path integration tests.
-- PR #29 added dry-run-first OAuth token-encryption migration tooling and a production rollout runbook.
-- Priority 0 issue #14 remains open.
-- Stage 6–7 activation issue #23 remains open.
+The implementation stack through Stage 7 is shipped. Work is now focused on real-provider activation, failure handling, and operational cleanup rather than another large feature stage.
 
-## Google production verification — partially complete
+Recent reliability/activation work:
 
-The Google production happy path has materially advanced after enabling the Gmail API in the Google Cloud project used by CallSync OAuth.
+- PR #25 moved meeting-request and confirmation delivery to the host's connected Gmail/Outlook mailbox path.
+- PR #27 put live provider connection state inside the existing Dashboard → Calendars cards.
+- PR #28 added database-backed Priority 0 provider failure-path tests.
+- PR #29 added dry-run-first OAuth token-encryption migration tooling and a production runbook.
+- PR #30 reconciled roadmap state after the first Google production activation.
+- PR #31 made expected provider failures user-actionable while keeping unexpected 5xx details private.
+- PR #32 added explicit AI-provider outage/malformed-response fallback tests and a safe authenticated generation-capability signal.
+- PR #33 documents Microsoft personal-account OAuth production setup and removes stale SendGrid setup/runtime configuration references.
 
-Manually verified with a real host/guest flow:
+Priority 0 issue #14 and Stage 6–7 activation issue #23 remain open because real-provider exit criteria are intentionally separate from source/CI/deployment completion.
 
-- Google connection succeeds in production.
-- A meeting-request email arrives from the host's connected Gmail account.
-- Host Google Calendar updates for the request.
-- The guest can book an offered slot.
-- The selected hold becomes the real meeting with the guest attendee.
-- Configured meeting duration is preserved.
-- Unselected holds are removed.
-- Calendar invitation / host and guest confirmation behavior works.
+## Priority 0 — real calendar booking verification
 
-Still not independently recorded as complete for the Google-only Priority 0 checklist:
+### Google-only — verified in production
 
-- a deliberately created busy-period exclusion check;
-- all pre-booking hold privacy assertions from the production UI/manual inspection;
-- dashboard-state parity after booking;
-- cancellation cleanup in the real Google account;
-- revoked/expired-token failure behavior.
+The complete Google happy path has been manually exercised with real accounts:
 
-Do not close issue #14 from the successful subset above.
+- Google OAuth connection succeeds.
+- a known Google busy period is excluded from availability;
+- offered slots become private host-only calendar holds;
+- the guest receives the request email from the connected host Gmail account;
+- the booking link opens and the guest can answer questions/select a slot;
+- the selected hold becomes the real attendee meeting;
+- configured duration is preserved;
+- unselected holds are removed;
+- calendar invite and host/guest confirmation behavior works;
+- CallSync reflects the confirmed booking state;
+- cancellation cleans up the Google meeting.
 
-## Outlook and dual-calendar production verification — still required
+Issue #14 Test A is checked complete.
 
-The remaining highest-priority manual work is:
+### Google + Outlook together — verified in production
 
-1. Outlook-only happy path: conflict exclusion, private/busy holds, promotion, duration, unused-hold cleanup, notifications, and cancellation.
-2. Google + Outlook together: provider-specific conflicts, holds in both calendars, consistent promotion, cleanup, and cancellation.
-3. Revoked/expired-provider failure checks for both calendars.
+The dual-provider happy path has also been manually exercised:
 
-The Dashboard → Calendars page now exposes live Google/Outlook connection state to make these checks easier to run without guessing whether a provider is connected.
+- both providers connect simultaneously;
+- a Google-only conflict blocks the corresponding slot;
+- a different Outlook-only conflict also blocks its slot;
+- offered slots are protected in both calendars;
+- booking promotes the selected hold consistently in both providers;
+- unselected holds disappear from both;
+- cancellation cleans up both calendars.
+
+Issue #14 Test C is checked complete.
+
+### Outlook-only — still required
+
+A dedicated Outlook-only run remains the missing happy-path release-gate check. It must independently verify:
+
+- Outlook busy-period exclusion;
+- private/busy host-only holds;
+- selected-hold promotion;
+- duration preservation;
+- unused-hold cleanup;
+- confirmation and cancellation behavior.
+
+The dual-calendar success is strong Outlook evidence, but it does not replace the explicit Outlook-only gate in issue #14.
+
+### Explicit failure-path checks — still required manually
+
+Automated coverage is strong, but issue #14 still requires real-provider checks for revoked/expired Google and Outlook tokens plus visible delivery-warning behavior.
+
+Do not close #14 until those manual checks and Outlook-only are complete.
+
+## Microsoft personal-account activation
+
+During real Outlook activation, Microsoft initially rejected a personal account with:
+
+> You can't sign in here with a personal account. Use your work or school account instead.
+
+The Entra app registration was corrected to support personal Microsoft accounts. The required production configuration is now documented in `docs/MICROSOFT_OAUTH_SETUP.md`, including:
+
+- `signInAudience = AzureADandPersonalMicrosoftAccount`;
+- `api.requestedAccessTokenVersion = 2`;
+- the `/common` Microsoft identity-platform v2 endpoints;
+- the production `/auth/outlook` redirect URI;
+- delegated `Calendars.ReadWrite`, `Mail.Send`, and `offline_access` permissions.
+
+Both Google and Outlook now connect successfully in the production CallSync Calendars workspace.
 
 ## Priority 0 automated reliability coverage
 
-PR #28 (`d98569dd9f3b79106deebd4df6d228a5de092859`) strengthened the failure-path gate with database-backed integration tests.
+PR #28 (`d98569dd9f3b79106deebd4df6d228a5de092859`) added database-backed tests that verify:
 
-CI now explicitly verifies that:
+- hold-creation failure rolls back the request before any request email is sent;
+- selected-hold promotion failure restores `pending` state and sends no confirmation;
+- partial confirmation-email failure preserves the calendar-confirmed booking while recording only successful delivery state;
+- cancellation cleanup failure remains visible without falsifying the stored cancelled state;
+- server/provider failures retain request-ID correlation.
 
-- a connected-calendar hold creation failure rolls back the meeting and slots before any request email is sent;
-- selected-hold promotion failure restores the meeting to `pending`, clears selection state, and sends no confirmation email;
-- partial confirmation-email failure keeps a calendar-confirmed booking intact while persisting only successful delivery timestamps;
-- cancellation cleanup failure is surfaced via `calendarCleanupComplete: false` while the stored meeting remains cancelled;
-- provider 5xx failures remain client-safe while returning a correlation `requestId`.
+PR #31 additionally preserves safe, actionable messages for deliberate operational `HttpError` failures while unexpected server exceptions remain generic to the client.
 
-These tests strengthen the release gate but do not substitute for real Google/Outlook verification.
+These tests do not substitute for the remaining real-provider failure checks.
 
 ## Stage 6A — provider-backed intelligence
 
 **Source:** shipped.
 
-**Production activation:** still required.
+**Automated fallback verification:** strengthened by PR #32 (`0239ce511683886c45abf66ef3131895feba491e`).
 
-Remaining checks under issue #23:
+CI now explicitly forces the provider path and verifies deterministic grounded fallback for:
 
-- confirm the production backend has a valid `OPENAI_API_KEY`;
-- generate a production meeting brief through the UI and verify useful structured output;
-- verify deterministic fallback when provider generation is unavailable;
-- verify generated fields remain editable;
-- exercise follow-up, pre-call, opening prompt, next-step, and meeting-memory suggestions against persisted meeting state;
-- confirm provider/model details remain outside the frontend response contract.
+- meeting briefs on upstream 503;
+- malformed meeting-brief structured output;
+- follow-up, pre-call, and next-step artifacts on provider outage;
+- malformed workflow-generation output;
+- meeting-memory generation on provider outage;
+- malformed meeting-memory output.
+
+The authenticated `/api/integrations/status` response now exposes only:
+
+```json
+{
+  "generation": {
+    "providerConfigured": true,
+    "deterministicFallbackAvailable": true
+  }
+}
+```
+
+The booleans allow production activation to verify configuration state without exposing the API key or model name.
+
+**Production activation still required:**
+
+- confirm `providerConfigured` is true in production;
+- generate a real production meeting brief and verify useful structured output;
+- verify host editability;
+- exercise follow-up, pre-call, next-step, and memory suggestions against persisted real meeting state;
+- confirm provider/model details remain outside normal frontend generation responses.
 
 ## Stage 6B — connected mailbox sending
 
 **Source:** shipped.
 
-The current meeting delivery architecture is now:
+Current meeting-delivery architecture:
 
-`CallSync → host's persisted Google/Microsoft OAuth token → Gmail API / Microsoft Graph → guest`
+`CallSync → host OAuth token → Gmail API / Microsoft Graph → guest`
 
-Meeting-request and confirmation delivery no longer depend on a configured SendGrid API key in the active runtime path. Connected follow-up sending remains available through Gmail `gmail.send` and Outlook delegated `Mail.Send`.
+The active meeting-request/confirmation runtime does not use SendGrid. PR #33 removes stale SendGrid environment/config documentation; the unused npm package entry remains a separate dependency-only cleanup.
 
-Google activation evidence now includes a successful real meeting-request email from the connected host Gmail account. The Stage 6B follow-up checklist is **not** complete yet because it specifically requires:
+Real Gmail meeting-request delivery is verified. The dedicated Stage 6B follow-up gate remains open because it still requires:
 
 - editing a pending-meeting follow-up draft;
-- sending that edited draft through Gmail from CallSync;
-- verifying arrival from the connected Gmail account;
-- verifying follow-up provider/timestamp state advances only after success;
-- revoking/missing send permission and verifying a failed send does not advance follow-up state.
-
-The equivalent Outlook connected-mail flow remains unverified in production.
+- sending it through connected Gmail;
+- verifying arrival and success-only provider/timestamp persistence;
+- repeating through connected Outlook and verifying Sent Items;
+- verifying revoked/missing send permission does not advance follow-up state.
 
 ## Stage 6C — coordination intelligence and analytics
 
 **Source:** shipped.
 
-**Production activation:** still required.
+Dual-calendar production testing has verified that provider-specific conflicts from Google and Outlook are both excluded from combined availability and that holds/promotion/cleanup stay consistent across providers.
 
-Remaining checks:
+Still required under #23:
 
-- Google-only and Outlook-only conflict-count verification;
-- ranked-slot reason quality without exposing private event content;
-- buffer-time behavior against real calendars;
-- Meeting Health booking/follow-up/outcome rates against actual production records;
-- safe zero/low-data analytics states.
+- inspect ranked-slot reasons in production and confirm they expose only time geometry/work-window context;
+- verify buffer-time behavior with real calendars;
+- compare Meeting Health booking/follow-up/outcome rates with actual production records;
+- verify zero/low-data analytics states.
 
 ## Stage 6C — observability and security
 
-Existing verified production behavior includes request IDs and hardened public DB-health output.
+Already production-verified:
 
-PR #29 (`eed21937d03d5347cdd56539bd22b92bdfcdc259`) adds the missing operational tooling for the OAuth token-encryption rollout:
+- responses carry request IDs;
+- public `/api/health/db` exposes only safe service/database reachability and commit correlation;
+- provider failures have safe client messages plus server-side correlation.
+
+PR #29 (`eed21937d03d5347cdd56539bd22b92bdfcdc259`) provides the OAuth-token encryption rollout tooling:
 
 - `npm run tokens:encrypt` is dry-run by default;
-- `npm run tokens:encrypt -- --apply` is the explicit apply mode;
-- a valid 32-byte base64 `TOKEN_ENCRYPTION_KEY` is required;
-- already-encrypted rows are decrypted during validation so a wrong/missing key aborts;
-- legacy plaintext values are round-trip checked before commit;
-- migration updates run in one transaction;
-- output contains aggregate counts only, not user emails, IDs, or token values;
-- `Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md` documents rollout and verification.
+- `npm run tokens:encrypt -- --apply` explicitly mutates rows;
+- a valid base64 32-byte `TOKEN_ENCRYPTION_KEY` is required;
+- already-encrypted rows are validated with the configured key;
+- legacy plaintext values are round-trip checked;
+- updates run transactionally;
+- output is aggregate-only;
+- `Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md` documents the operational sequence.
 
-This **does not** mean production token encryption is activated yet. Remaining activation steps are:
-
-1. configure one stable production `TOKEN_ENCRYPTION_KEY`;
-2. deploy and verify existing plaintext connections still work;
-3. run the migration dry-run against the real production database;
-4. review counts and database backup;
-5. apply explicitly;
-6. re-run dry-run and verify zero remaining plaintext provider tokens;
-7. exercise real Google/Outlook reads, refresh persistence, and connected sending after migration.
+**Production token encryption is not yet activated.** The secret still has to be deliberately configured, the production dry-run reviewed, the migration applied, and real Google/Outlook reads/refresh/sending retested afterward.
 
 ## Stage 7 — durable meeting memory
 
 **Source:** shipped.
 
-**Production activation:** still required.
+Automated coverage includes raw/generated separation, grounding constraints, persistence, and repeated-attendee continuity. PR #32 additionally verifies that provider outage or malformed provider output falls back to notes/persisted context rather than breaking memory generation.
 
-Use a real booked meeting to verify:
+Production activation still requires a real booked meeting to verify:
 
-- raw notes remain separate from generated memory;
-- generated summary/key points/decisions/action items/questions stay grounded in captured context;
-- generated memory remains editable and persists after reload;
-- a second meeting with the same attendee receives prior relationship continuity in pre-call preparation;
+- raw notes remain distinct from derived memory;
+- generated memory remains grounded and editable;
+- edits persist after reload;
+- a second meeting with the same attendee receives previous relationship context;
 - pending/unbooked requests cannot be saved as completed meeting memory.
 
 ## Billing
 
-Billing remains intentionally deferred. Reliability, provider activation, connected communication, lifecycle intelligence, security migration, and durable meeting memory stay ahead of monetization work.
+Billing remains intentionally deferred. Reliability, provider activation, connected communication, analytics, security migration, and durable meeting memory remain ahead of monetization work.
 
 ## Immediate execution order
 
-1. Complete Outlook-only Priority 0 production testing.
-2. Complete Google + Outlook dual-calendar production testing.
-3. Finish the remaining Google-only cancellation/conflict/revoked-token checks.
-4. Verify Stage 6B edited follow-up sending through Gmail, then Outlook.
-5. Verify Stage 6A provider-backed intelligence and fallback behavior.
-6. Exercise Stage 6C conflict intelligence and lifecycle analytics on real records.
-7. Configure and execute the production OAuth token-encryption rollout using the new dry-run/apply tooling.
-8. Exercise Stage 7 durable meeting memory and repeated-attendee continuity.
-9. Close #14 and #23 only when their real-provider exit criteria are satisfied.
-10. Define the paid product boundary only after repeated value is demonstrated.
+1. Complete the dedicated Outlook-only Priority 0 production run.
+2. Complete revoked/expired-token and visible-delivery-warning Priority 0 checks.
+3. Verify Stage 6A provider-backed generation in production using the new safe capability signal.
+4. Verify edited connected follow-up sending through Gmail and Outlook.
+5. Finish Stage 6C ranked-slot/privacy/buffer and lifecycle-analytics checks against real data.
+6. Configure and execute the production OAuth token-encryption rollout using the dry-run/apply runbook.
+7. Exercise Stage 7 durable meeting memory and repeated-attendee continuity in production.
+8. Close #14 and #23 only after their real-provider exit criteria pass.
+9. Define the paid product boundary only after repeated product value is demonstrated.
