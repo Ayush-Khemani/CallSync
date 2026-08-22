@@ -88,6 +88,38 @@
   margin-top: 12px;
 }
 
+.request-delivery-recovery {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(176, 97, 24, 0.28);
+  border-radius: 14px;
+  background: #fff8ed;
+  color: #5b3819;
+}
+
+.request-delivery-recovery > b,
+.request-delivery-recovery > span {
+  display: block;
+}
+
+.request-delivery-recovery > b {
+  color: #42260f;
+}
+
+.request-delivery-recovery > span {
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.request-delivery-recovery .booking-link-preview {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.75);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
 .connected-mail-hint {
   margin-top: 10px;
   padding: 0;
