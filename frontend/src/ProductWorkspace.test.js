@@ -4,6 +4,17 @@ import axios from 'axios';
 import ProductWorkspace from './ProductWorkspace';
 import MeetingRecordPage from './MeetingRecordPage';
 
+jest.mock('react-router-dom', () => {
+  const React = require('react');
+  return {
+    BrowserRouter: ({ children }) => <div>{children}</div>,
+    Link: ({ children, to, ...props }) => <a href={to} {...props}>{children}</a>,
+    Routes: ({ children }) => <div>{React.Children.toArray(children)[0]}</div>,
+    Route: ({ element }) => element,
+    useNavigate: () => jest.fn(),
+  };
+}, { virtual: true });
+
 jest.mock('axios', () => ({
   __esModule: true,
   default: {
@@ -83,5 +94,5 @@ test('meeting record centralizes overview, preparation, follow-up, outcome, memo
   expect(screen.getByRole('button', { name: 'Memory' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Activity' })).toBeInTheDocument();
   expect(screen.getByText('Northstar Ventures')).toBeInTheDocument();
-  expect(screen.getByText('Review the current deck.')).toBeInTheDocument();
+  expect(screen.getByDisplayValue('Review the current deck.')).toBeInTheDocument();
 });
