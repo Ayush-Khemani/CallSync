@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import App, { MEETING_TEMPLATES, buildMeetingDraftFromPrompt, getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages, getPipelineEmptyState, inferMeetingTemplate } from './App';
+import App, { MEETING_TEMPLATES, buildMeetingDraftFromPrompt, getMeetingActionState, getPipelineEmptyState, inferMeetingTemplate } from './App';
+import { getFollowUpRisk, getMeetingPipelineStages } from './followUpWorkflow';
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -48,19 +49,19 @@ test('groups meetings into pipeline stages', () => {
 test('scores pending invite follow-up risk', () => {
   const now = Date.now();
 
-  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now).toISOString() })).toMatchObject({
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now).toISOString() }, now)).toMatchObject({
     level: 'low',
     label: 'Healthy invite',
   });
-  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 2 * 86400000).toISOString() })).toMatchObject({
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 2 * 86400000).toISOString() }, now)).toMatchObject({
     level: 'medium',
     label: 'Follow-up due',
   });
-  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 5 * 86400000).toISOString() })).toMatchObject({
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 5 * 86400000).toISOString() }, now)).toMatchObject({
     level: 'high',
     label: 'High follow-up risk',
   });
-  expect(getFollowUpRisk({ status: 'confirmed', createdAt: new Date(now - 5 * 86400000).toISOString() })).toMatchObject({
+  expect(getFollowUpRisk({ status: 'confirmed', createdAt: new Date(now - 5 * 86400000).toISOString() }, now)).toMatchObject({
     level: 'none',
   });
 });
