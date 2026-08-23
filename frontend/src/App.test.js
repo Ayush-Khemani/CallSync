@@ -85,6 +85,27 @@ test('surfaces unconfirmed request email delivery immediately', () => {
   expect(stages.find((stage) => stage.id === 'pending').meetings).toEqual([]);
 });
 
+test('surfaces confirmation delivery uncertainty without moving a booked meeting into follow-up', () => {
+  const now = Date.now();
+  const meeting = {
+    id: 12,
+    status: 'confirmed',
+    createdAt: new Date(now).toISOString(),
+    confirmationAttendeeEmailSentAt: null,
+    confirmationHostEmailSentAt: new Date(now).toISOString(),
+  };
+
+  expect(getFollowUpRisk(meeting, now)).toMatchObject({
+    level: 'medium',
+    label: 'Confirmation delivery unconfirmed',
+  });
+  expect(getFollowUpRisk(meeting, now).detail).toContain('meeting is booked on the calendar');
+
+  const stages = getMeetingPipelineStages([meeting]);
+  expect(stages.find((stage) => stage.id === 'followUp').meetings).toEqual([]);
+  expect(stages.find((stage) => stage.id === 'confirmed').meetings.map((item) => item.id)).toEqual([12]);
+});
+
 test('keeps host meeting actions explicit by status', () => {
   expect(getMeetingActionState({ status: 'pending' })).toMatchObject({
     canCancel: true,
