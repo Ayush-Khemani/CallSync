@@ -14,11 +14,28 @@ function defaultDueTime(meeting) {
 }
 
 export function getFollowUpRisk(meeting, now = Date.now()) {
+  if (meeting.status === 'confirmed'
+    && (meeting.confirmationAttendeeEmailSentAt === null || meeting.confirmationHostEmailSentAt === null)) {
+    return {
+      level: 'medium',
+      label: 'Confirmation delivery unconfirmed',
+      detail: 'The meeting is booked on the calendar, but one or more confirmation emails were not verified as sent. Check the guest/host inboxes before relying on email delivery.',
+    };
+  }
+
   if (meeting.status !== 'pending') {
     return {
       level: 'none',
       label: 'No follow-up needed',
       detail: 'This meeting is no longer waiting on a guest.',
+    };
+  }
+
+  if (meeting.requestEmailSentAt === null) {
+    return {
+      level: 'high',
+      label: 'Email delivery unconfirmed',
+      detail: 'CallSync could not confirm the request email was sent. Copy the booking link and send it to the guest manually.',
     };
   }
 
@@ -56,7 +73,7 @@ export function getFollowUpRisk(meeting, now = Date.now()) {
 }
 
 export function needsFollowUp(meeting) {
-  return ['medium', 'high'].includes(getFollowUpRisk(meeting).level);
+  return meeting.status === 'pending' && ['medium', 'high'].includes(getFollowUpRisk(meeting).level);
 }
 
 export function getMeetingPipelineStages(meetings) {

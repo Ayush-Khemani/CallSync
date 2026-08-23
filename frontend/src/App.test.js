@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import App, { MEETING_TEMPLATES, buildMeetingDraftFromPrompt, getFollowUpRisk, getMeetingActionState, getMeetingPipelineStages, getPipelineEmptyState, inferMeetingTemplate } from './App';
+import App, { MEETING_TEMPLATES, buildMeetingDraftFromPrompt, getMeetingActionState, getPipelineEmptyState, inferMeetingTemplate } from './App';
+import { getFollowUpRisk, getMeetingPipelineStages } from './followUpWorkflow';
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -48,21 +49,62 @@ test('groups meetings into pipeline stages', () => {
 test('scores pending invite follow-up risk', () => {
   const now = Date.now();
 
-  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now).toISOString() })).toMatchObject({
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now).toISOString() }, now)).toMatchObject({
     level: 'low',
     label: 'Healthy invite',
   });
-  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 2 * 86400000).toISOString() })).toMatchObject({
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 2 * 86400000).toISOString() }, now)).toMatchObject({
     level: 'medium',
     label: 'Follow-up due',
   });
-  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 5 * 86400000).toISOString() })).toMatchObject({
+  expect(getFollowUpRisk({ status: 'pending', createdAt: new Date(now - 5 * 86400000).toISOString() }, now)).toMatchObject({
     level: 'high',
     label: 'High follow-up risk',
   });
-  expect(getFollowUpRisk({ status: 'confirmed', createdAt: new Date(now - 5 * 86400000).toISOString() })).toMatchObject({
+  expect(getFollowUpRisk({ status: 'confirmed', createdAt: new Date(now - 5 * 86400000).toISOString() }, now)).toMatchObject({
     level: 'none',
   });
+});
+
+test('surfaces unconfirmed request email delivery immediately', () => {
+  const now = Date.now();
+  const meeting = {
+    id: 11,
+    status: 'pending',
+    createdAt: new Date(now).toISOString(),
+    requestEmailSentAt: null,
+  };
+
+  expect(getFollowUpRisk(meeting, now)).toMatchObject({
+    level: 'high',
+    label: 'Email delivery unconfirmed',
+  });
+  expect(getFollowUpRisk(meeting, now).detail).toContain('Copy the booking link');
+
+  const stages = getMeetingPipelineStages([meeting]);
+  expect(stages.find((stage) => stage.id === 'followUp').meetings.map((item) => item.id)).toEqual([11]);
+  expect(stages.find((stage) => stage.id === 'pending').meetings).toEqual([]);
+});
+
+test('surfaces confirmation delivery uncertainty without moving a booked meeting into follow-up', () => {
+  const now = Date.now();
+  const meeting = {
+    id: 12,
+    status: 'confirmed',
+    createdAt: new Date(now).toISOString(),
+    confirmationAttendeeEmailSentAt: null,
+    confirmationHostEmailSentAt: new Date(now).toISOString(),
+  };
+
+  expect(getFollowUpRisk(meeting, now)).toMatchObject({
+    level: 'medium',
+    label: 'Confirmation delivery unconfirmed',
+  });
+  expect(getFollowUpRisk(meeting, now).detail).toContain('meeting is booked on the calendar');
+
+  const stages = getMeetingPipelineStages([meeting]);
+  expect(stages.find((stage) => stage.id === 'followUp').meetings).toEqual([]);
+  expect(stages.find((stage) => stage.id === 'confirmed').meetings.map((item) => item.id)).toEqual([12]);
 });
 
 test('keeps host meeting actions explicit by status', () => {
