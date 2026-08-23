@@ -6,11 +6,11 @@ import './PlatformVisualAlignment.css';
 import App from './App';
 import LandingPageV6 from './LandingPageV6';
 import Stage4Product from './Stage4Product';
-import Stage5Prep, { Stage5Launcher } from './Stage5Prep';
-import Stage6CHealth from './Stage6CHealth';
-import Stage7Memory, { Stage7Launcher } from './Stage7Memory';
+import Stage5Prep from './Stage5Prep';
+import Stage7Memory from './Stage7Memory';
+import ProductWorkspace from './ProductWorkspace';
+import MeetingRecordPage from './MeetingRecordPage';
 import OAuthCallbackPage from './OAuthCallbackPage';
-import CalendarConnectionStatus from './CalendarConnectionStatus';
 import reportWebVitals from './reportWebVitals';
 
 const NAVIGATION_EVENT = 'callsync:navigation';
@@ -41,9 +41,10 @@ function RootApp() {
   }, []);
 
   if (pathname === '/') return <LandingPageV6 />;
-  if (pathname === '/prepare') return <><Stage5Prep /><Stage7Launcher /></>;
+  if (pathname === '/dashboard') return <ProductWorkspace />;
+  if (pathname.startsWith('/meeting/')) return <MeetingRecordPage />;
+  if (pathname === '/prepare') return <Stage5Prep />;
   if (pathname === '/memory') return <Stage7Memory />;
-  if (pathname === '/dashboard') return <><Stage4Product /><Stage5Launcher /><Stage6CHealth /><Stage7Launcher /><CalendarConnectionStatus /></>;
   if (pathname.startsWith('/select-slot/')) return <Stage4Product />;
   if (pathname === '/auth/google') return <OAuthCallbackPage provider="google" />;
   if (pathname === '/auth/outlook') return <OAuthCallbackPage provider="outlook" />;

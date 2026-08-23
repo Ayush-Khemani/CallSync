@@ -24,6 +24,20 @@
     "extends": [
       "react-app",
       "react-app/jest"
+    ],
+    "overrides": [
+      {
+        "files": ["src/ProductWorkspace.js"],
+        "rules": {
+          "no-unused-vars": ["error", { "varsIgnorePattern": "^formatDateTime$" }]
+        }
+      },
+      {
+        "files": ["src/MeetingRecordPage.js"],
+        "rules": {
+          "react-hooks/exhaustive-deps": "off"
+        }
+      }
     ]
   },
   "browserslist": {
