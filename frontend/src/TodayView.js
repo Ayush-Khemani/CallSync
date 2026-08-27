@@ -4,6 +4,8 @@ import { API_URL, authHeaders, formatShortDate } from './workspaceShared';
 import { buildTodayWorkspace, todayAttentionCount } from './todayWorkflow';
 import './TodayView.css';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function MeetingRow({ meeting, eyebrow, detail, action = 'Open meeting' }) {
   return (
     <a className="today-row" href={`/meeting/${meeting.id}`}>
@@ -20,6 +22,25 @@ function MeetingRow({ meeting, eyebrow, detail, action = 'Open meeting' }) {
   );
 }
 
+function ActionRow({ action, onComplete, busy }) {
+  return (
+    <div className="today-action-row">
+      <a href={`/meeting/${action.meetingId}`}>
+        <div className="today-row-main">
+          <span>Meeting action</span>
+          <strong>{action.title}</strong>
+          <small>{action.attendeeName || action.attendeeEmail || 'Related meeting'}</small>
+        </div>
+        <div className="today-row-side">
+          <span>{action.dueAt ? `Due ${formatShortDate(action.dueAt)}` : 'No due date'}</span>
+          <b>Open meeting →</b>
+        </div>
+      </a>
+      <button type="button" onClick={() => onComplete(action.actionId)} disabled={busy}>✓ Done</button>
+    </div>
+  );
+}
+
 function Section({ title, count, empty, children }) {
   return (
     <section className="today-section">
@@ -31,18 +52,21 @@ function Section({ title, count, empty, children }) {
 
 export default function TodayView({ onCreate, onPipeline }) {
   const [meetings, setMeetings] = useState([]);
+  const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [busyActionId, setBusyActionId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
 
   async function load() {
     setLoading(true);
     setMessage('');
     try {
-      const [meetingsResponse, followUpResponse, outcomeResponse] = await Promise.all([
+      const [meetingsResponse, followUpResponse, outcomeResponse, actionsResponse] = await Promise.all([
         axios.get(`${API_URL}/api/meetings`, { headers: authHeaders() }),
         axios.get(`${API_URL}/api/meetings/follow-up-state`, { headers: authHeaders() }).catch(() => ({ data: { followUps: [] } })),
         axios.get(`${API_URL}/api/meetings/outcome-state`, { headers: authHeaders() }).catch(() => ({ data: { outcomes: [] } })),
+        axios.get(`${API_URL}/api/actions?status=open`, { headers: authHeaders() }).catch(() => ({ data: { actions: [] } })),
       ]);
 
       const followUpById = new Map((followUpResponse.data.followUps || []).map((item) => [item.meetingId, item]));
@@ -52,6 +76,7 @@ export default function TodayView({ onCreate, onPipeline }) {
         ...(followUpById.get(meeting.id) || {}),
         ...(outcomeById.get(meeting.id) || {}),
       })));
+      setActions(actionsResponse.data.actions || []);
       setNow(Date.now());
     } catch (error) {
       setMessage(error.response?.data?.error || 'Could not load today’s meeting work.');
@@ -63,8 +88,27 @@ export default function TodayView({ onCreate, onPipeline }) {
   useEffect(() => { load(); }, []);
 
   const workspace = useMemo(() => buildTodayWorkspace(meetings, now), [meetings, now]);
-  const attentionCount = todayAttentionCount(workspace);
+  const dueActions = useMemo(() => actions.filter((action) => {
+    if (!action.dueAt) return true;
+    const dueTime = new Date(action.dueAt).getTime();
+    return !Number.isNaN(dueTime) && dueTime <= now + DAY_MS;
+  }), [actions, now]);
+  const attentionCount = todayAttentionCount(workspace, dueActions.length);
   const firstUpcoming = workspace.upcoming[0] || null;
+
+  async function completeAction(actionId) {
+    setBusyActionId(actionId);
+    setMessage('');
+    try {
+      await axios.patch(`${API_URL}/api/actions/${actionId}`, { status: 'completed' }, { headers: authHeaders() });
+      setActions((current) => current.filter((action) => action.actionId !== actionId));
+      setMessage('Action completed.');
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Could not complete the action.');
+    } finally {
+      setBusyActionId(null);
+    }
+  }
 
   return (
     <section className="pw-page today-page">
@@ -81,7 +125,7 @@ export default function TodayView({ onCreate, onPipeline }) {
         <article>
           <span>Needs action</span>
           <strong>{attentionCount}</strong>
-          <small>Follow-ups, outcomes and due next steps</small>
+          <small>Commitments, follow-ups and missing outcomes</small>
         </article>
         <article>
           <span>Next 24 hours</span>
@@ -95,7 +139,7 @@ export default function TodayView({ onCreate, onPipeline }) {
         </article>
       </div>
 
-      {message && <div className="pw-message error">{message}</div>}
+      {message && <div className="pw-message success">{message}</div>}
       {loading && !meetings.length && <div className="pw-loading-card">Building your daily meeting queue…</div>}
 
       {!loading && (
@@ -107,9 +151,9 @@ export default function TodayView({ onCreate, onPipeline }) {
               ))}
             </Section>
 
-            <Section title="Needs action" count={attentionCount} empty="You are caught up. No follow-ups, overdue outcomes or next actions need attention.">
-              {workspace.actions.map((meeting) => (
-                <MeetingRow key={`action-${meeting.id}`} meeting={meeting} eyebrow="Next action due" detail={meeting.followUpAt ? formatShortDate(meeting.followUpAt) : 'Due now'} action="Handle action" />
+            <Section title="Needs action" count={attentionCount} empty="You are caught up. No commitments, follow-ups or overdue outcomes need attention.">
+              {dueActions.map((action) => (
+                <ActionRow key={`action-${action.actionId}`} action={action} onComplete={completeAction} busy={busyActionId === action.actionId} />
               ))}
               {workspace.outcomes.map((meeting) => (
                 <MeetingRow key={`outcome-${meeting.id}`} meeting={meeting} eyebrow="Outcome missing" detail={formatShortDate(meeting.selectedSlot)} action="Capture outcome" />
