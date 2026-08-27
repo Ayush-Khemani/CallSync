@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import axios from 'axios';
 import ProductWorkspace from './ProductWorkspace';
 import MeetingRecordPage from './MeetingRecordPage';
@@ -71,9 +71,13 @@ afterEach(() => {
   localStorage.clear();
 });
 
-test('renders a Kanban-only pipeline with meeting cards linking to a dedicated record', async () => {
+test('opens on a Today queue and keeps Pipeline as the full Kanban overview', async () => {
   render(<ProductWorkspace />);
 
+  expect(screen.getByRole('heading', { name: /What needs your attention/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Today/i })).toHaveClass('active');
+
+  fireEvent.click(screen.getByRole('button', { name: /Pipeline/i }));
   expect(screen.getByRole('heading', { name: /Every conversation, one clear next state/i })).toBeInTheDocument();
   await waitFor(() => expect(screen.getByText('Maya Chen')).toBeInTheDocument());
 
