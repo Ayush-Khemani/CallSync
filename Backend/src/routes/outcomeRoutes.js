@@ -56,46 +56,89 @@ router.patch('/meetings/:id/outcome', authMiddleware, asyncHandler(async (req, r
   const meetingId = Number(req.params.id);
   if (!Number.isInteger(meetingId)) throw new HttpError(400, 'Valid meeting ID required');
 
-  const meetingResult = await pool.query(
-    'SELECT id, status FROM meetings WHERE id = $1 AND user_id = $2',
-    [meetingId, req.userId]
-  );
-  const meeting = meetingResult.rows[0];
-  if (!meeting) throw new HttpError(404, 'Meeting not found');
-  if (meeting.status !== 'confirmed') throw new HttpError(409, 'Outcomes can only be recorded for booked meetings');
-
   const happened = optionalBoolean(req.body.happened, 'happened');
   const useful = optionalBoolean(req.body.useful, 'useful');
   const nextStep = cleanText(req.body.nextStep, 5000);
   const followUpAt = optionalDate(req.body.followUpAt);
   const notes = cleanText(req.body.notes, 10000);
 
-  const result = await pool.query(
-    `UPDATE meetings
-     SET meeting_happened = $1,
-         meeting_useful = $2,
-         outcome_next_step = $3,
-         outcome_follow_up_at = $4,
-         outcome_notes = $5,
-         outcome_recorded_at = NOW()
-     WHERE id = $6 AND user_id = $7
-     RETURNING id, meeting_happened, meeting_useful, outcome_next_step, outcome_follow_up_at, outcome_notes, outcome_recorded_at`,
-    [happened, useful, nextStep, followUpAt, notes, meetingId, req.userId]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  const row = result.rows[0];
-  res.json({
-    message: 'Meeting outcome saved',
-    outcome: {
-      meetingId: row.id,
-      happened: row.meeting_happened,
-      useful: row.meeting_useful,
-      nextStep: row.outcome_next_step || '',
-      followUpAt: row.outcome_follow_up_at,
-      notes: row.outcome_notes || '',
-      recordedAt: row.outcome_recorded_at,
-    },
-  });
+    const meetingResult = await client.query(
+      'SELECT id, status FROM meetings WHERE id = $1 AND user_id = $2 FOR UPDATE',
+      [meetingId, req.userId]
+    );
+    const meeting = meetingResult.rows[0];
+    if (!meeting) throw new HttpError(404, 'Meeting not found');
+    if (meeting.status !== 'confirmed') throw new HttpError(409, 'Outcomes can only be recorded for booked meetings');
+
+    const result = await client.query(
+      `UPDATE meetings
+       SET meeting_happened = $1,
+           meeting_useful = $2,
+           outcome_next_step = $3,
+           outcome_follow_up_at = $4,
+           outcome_notes = $5,
+           outcome_recorded_at = NOW()
+       WHERE id = $6 AND user_id = $7
+       RETURNING id, meeting_happened, meeting_useful, outcome_next_step, outcome_follow_up_at, outcome_notes, outcome_recorded_at`,
+      [happened, useful, nextStep, followUpAt, notes, meetingId, req.userId]
+    );
+
+    if (nextStep) {
+      await client.query(
+        `INSERT INTO meeting_actions (meeting_id, user_id, title, due_at, source)
+         VALUES ($1, $2, $3, $4, 'outcome')
+         ON CONFLICT (meeting_id, source) WHERE source = 'outcome'
+         DO UPDATE SET
+           title = EXCLUDED.title,
+           due_at = EXCLUDED.due_at,
+           status = CASE
+             WHEN meeting_actions.title IS DISTINCT FROM EXCLUDED.title
+               OR meeting_actions.due_at IS DISTINCT FROM EXCLUDED.due_at
+             THEN 'open'
+             ELSE meeting_actions.status
+           END,
+           completed_at = CASE
+             WHEN meeting_actions.title IS DISTINCT FROM EXCLUDED.title
+               OR meeting_actions.due_at IS DISTINCT FROM EXCLUDED.due_at
+             THEN NULL
+             ELSE meeting_actions.completed_at
+           END,
+           updated_at = NOW()`,
+        [meetingId, req.userId, nextStep, followUpAt]
+      );
+    } else {
+      await client.query(
+        `DELETE FROM meeting_actions
+         WHERE meeting_id = $1 AND user_id = $2 AND source = 'outcome'`,
+        [meetingId, req.userId]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    const row = result.rows[0];
+    res.json({
+      message: 'Meeting outcome saved',
+      outcome: {
+        meetingId: row.id,
+        happened: row.meeting_happened,
+        useful: row.meeting_useful,
+        nextStep: row.outcome_next_step || '',
+        followUpAt: row.outcome_follow_up_at,
+        notes: row.outcome_notes || '',
+        recordedAt: row.outcome_recorded_at,
+      },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }));
 
 module.exports = router;
