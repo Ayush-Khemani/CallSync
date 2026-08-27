@@ -1,5 +1,5 @@
 import { getMeetingNextAction } from './stage5Workflow';
-import { needsFollowUp } from './followUpWorkflow';
+import { getFollowUpRisk } from './followUpWorkflow';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -24,7 +24,8 @@ export function buildTodayWorkspace(meetings, now = Date.now()) {
 
     if (meeting.status === 'pending') {
       waiting.push(meeting);
-      if (needsFollowUp(meeting, now)) followUp.push(meeting);
+      const risk = getFollowUpRisk(meeting, now);
+      if (risk.level === 'medium' || risk.level === 'high') followUp.push(meeting);
       return;
     }
 
