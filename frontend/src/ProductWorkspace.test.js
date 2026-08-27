@@ -47,11 +47,24 @@ const meeting = {
   confirmationHostEmailSentAt: '2026-08-22T10:05:00.000Z',
 };
 
+const action = {
+  actionId: 3,
+  meetingId: 7,
+  title: 'Send the updated investor deck',
+  dueAt: null,
+  status: 'open',
+  source: 'outcome',
+  attendeeName: 'Maya Chen',
+  attendeeEmail: 'maya@example.com',
+  meetingType: 'Investor meeting',
+};
+
 function mockApi() {
   axios.get.mockImplementation((url) => {
     if (url.includes('/api/meetings/follow-up-state')) return Promise.resolve({ data: { followUps: [] } });
     if (url.includes('/api/meetings/outcome-state')) return Promise.resolve({ data: { outcomes: [] } });
     if (url.includes('/api/meetings/memory-state')) return Promise.resolve({ data: { memories: [] } });
+    if (url.includes('/api/actions?status=open')) return Promise.resolve({ data: { actions: [action] } });
     if (url.includes('/api/integrations/status')) return Promise.resolve({ data: { google: { mailSendEnabled: true }, outlook: { mailSendEnabled: true } } });
     if (url.includes('/api/analytics/meeting-lifecycle')) return Promise.resolve({ data: { allTime: { rates: { booking: 100, outcomeCapture: 0 }, outcomesRecorded: 0 } } });
     if (url.endsWith('/api/meetings')) return Promise.resolve({ data: { meetings: [meeting] } });
@@ -64,6 +77,7 @@ beforeEach(() => {
   axios.get.mockReset();
   axios.post.mockReset();
   axios.patch.mockReset();
+  axios.patch.mockResolvedValue({ data: { message: 'Action completed' } });
   mockApi();
 });
 
@@ -84,6 +98,20 @@ test('opens on a Today queue and keeps Pipeline as the full Kanban overview', as
   const card = screen.getByRole('link', { name: /Maya Chen/i });
   expect(card).toHaveAttribute('href', '/meeting/7');
   expect(screen.queryByText(/Meeting brief · editable/i)).not.toBeInTheDocument();
+});
+
+test('Today surfaces durable meeting actions and can complete them without leaving the workspace', async () => {
+  render(<ProductWorkspace />);
+
+  await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
+  fireEvent.click(screen.getByRole('button', { name: /Done/i }));
+
+  await waitFor(() => expect(axios.patch).toHaveBeenCalledWith(
+    expect.stringContaining('/api/actions/3'),
+    { status: 'completed' },
+    expect.objectContaining({ headers: expect.any(Object) })
+  ));
+  await waitFor(() => expect(screen.queryByText('Send the updated investor deck')).not.toBeInTheDocument());
 });
 
 test('meeting record centralizes overview, preparation, follow-up, outcome, memory and activity navigation', async () => {
