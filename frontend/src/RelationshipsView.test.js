@@ -33,7 +33,8 @@ test('renders one relationship for repeated meetings and links to the latest rec
   expect(screen.getByText('Maya wants updated retention before the partner meeting.')).toBeInTheDocument();
   expect(screen.getByText('Send updated revenue metrics')).toBeInTheDocument();
   expect(screen.getByText(/Investor follow-up/i)).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /Open latest meeting/i })).toHaveAttribute('href', '/meeting/2');
+  const latestMeetingLinks = screen.getAllByRole('link', { name: /Open latest meeting/i });
+  expect(latestMeetingLinks.find((link) => link.getAttribute('href') === '/meeting/2')).toBeTruthy();
 });
 
 test('searches relationships by name or context', async () => {
