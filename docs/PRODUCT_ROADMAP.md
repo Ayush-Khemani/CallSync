@@ -322,7 +322,7 @@ Move from copyable messages and transactional notifications to communication sen
 - Add Gmail `gmail.send` scope and connected sending without requesting inbox-read access for this workflow.
 - Add Outlook delegated `Mail.Send` alongside calendar access.
 - Send edited follow-ups through the connected mailbox.
-- Keep SendGrid for transactional system notifications.
+- Use the host's connected Gmail/Outlook mailbox for meeting communication; the active runtime no longer depends on SendGrid.
 - Persist actual outbound timestamps/provider against the Stage 4 follow-up model.
 - Surface sending failures clearly and do not advance follow-up state after failed sends.
 - Preserve calendar-only token refresh behavior for existing Outlook connections until deliberate re-consent.
