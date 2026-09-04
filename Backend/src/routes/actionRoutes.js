@@ -50,14 +50,13 @@ router.get('/actions', authMiddleware, asyncHandler(async (req, res) => {
   const filters = [];
   if (requestedStatus !== 'all') {
     params.push(requestedStatus);
-    filters.push('a.status = 
+    filters.push('a.status = $' + params.length);
   }
   if (requestedMeetingId !== null) {
     params.push(requestedMeetingId);
-    filters.push('a.meeting_id = 
+    filters.push('a.meeting_id = $' + params.length);
   }
   const filterClause = filters.length ? `AND ${filters.join(' AND ')}` : '';
-
   const result = await pool.query(
     `SELECT
       a.id,
