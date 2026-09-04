@@ -1,8 +1,8 @@
 # CallSync Product Roadmap
 
-_Last updated: 2026-08-22_
+_Last updated: 2026-09-04_
 
-This document is the product source of truth for CallSync. Implementation/release status should be cross-checked against `docs/ROADMAP_STATUS_2026-08-22.md`. Real-provider release gates are tracked separately in issues #14 and #23; **merged/deployed source does not by itself mean external-provider activation has been verified.**
+This document is the product source of truth for CallSync. Implementation/release status should be cross-checked against `docs/ROADMAP_STATUS_2026-09-04.md`. Real-provider release gates are tracked separately in issues #14 and #23; **merged/deployed source does not by itself mean external-provider activation has been verified.**
 
 ---
 
@@ -415,6 +415,80 @@ The shipped implementation includes `/memory`, authenticated persistence, ground
 
 ---
 
+# Post-Stage 7 — Daily Execution, Actions & Relationships
+
+**Status: Shipped through PR #40; provider-independent product behavior is covered by frontend and database-backed tests.**
+
+## Goal
+
+Turn the durable meeting record into a product users can return to every day, instead of making them hunt through individual meetings to remember what needs attention.
+
+## Shipped product surfaces
+
+### Today
+
+- Default authenticated workspace.
+- Upcoming booked meetings in the next 24 hours.
+- Booking requests that need follow-up.
+- Missing post-call outcomes.
+- Due durable actions.
+- Direct navigation back to the canonical meeting record.
+
+### Durable Action Engine
+
+- Meeting-linked actions with title, due date, source, status, and completion state.
+- Outcome next steps become durable actions transactionally.
+- Completed actions are not resurrected by unchanged outcome saves.
+- Materially changed commitments reopen.
+- Manual commitments can coexist with outcome-generated actions.
+
+### Actions workspace
+
+- Open / Completed / All views.
+- Overdue visibility.
+- Complete/reopen controls.
+- Manual action creation tied to an existing meeting.
+
+### Relationships workspace
+
+- Repeated meetings grouped by normalized attendee email.
+- Latest memory/outcome context carried forward.
+- Meeting count, pending state, open commitments, and nearest action surfaced.
+- Derived from canonical meeting state rather than a second contacts database.
+
+### Meeting-record Actions
+
+- Meeting-scoped action loading.
+- Add, complete, and reopen commitments inside `/meeting/:id`.
+- Outcome-backed actions refresh when the saved next step changes.
+- The meeting record remains the source of truth for brief, preparation, follow-up, outcome, commitments, memory, and activity.
+
+## Product architecture
+
+**Today → Pipeline → Relationships → Actions → Meeting record**
+
+These are complementary views over the same meeting lifecycle, not separate mini-products.
+
+- Today answers: **what needs attention now?**
+- Pipeline answers: **where is each meeting opportunity?**
+- Relationships answers: **what history do I have with this person?**
+- Actions answers: **what have I committed to do?**
+- Meeting record answers: **what is the complete context for this conversation?**
+
+## Acceptance
+
+- A user can begin the day from a concise execution queue.
+- A meeting outcome can produce durable work without duplicate entry.
+- Repeated conversations preserve context.
+- Every global view can return the user to the canonical meeting record.
+- No generic project-management or heavyweight CRM model is required.
+
+## Next validation
+
+Use these surfaces with real repeated meetings while completing issues #14 and #23. Product expansion after this layer should be driven by observed repeated usage, not by feature count.
+
+---
+
 # Long-Term Product Direction
 
 CallSync should progressively become the operating layer around high-value meetings.
@@ -459,13 +533,14 @@ The landing page and application should communicate the same product: **an end-t
 
 The major roadmap source stack through Stage 7 is now merged and deployed. The next work is **activation and real-world verification**, not another large feature layer:
 
-1. **Priority 0:** complete real Google-only, Outlook-only, dual-calendar, inbox, booking, cancellation, and failure-path verification in issue #14.
-2. **Stage 6A:** verify real provider-backed intelligence in production and deterministic fallback behavior.
-3. **Stage 6B:** re-consent real Gmail/Outlook accounts and verify connected follow-up sends, inbox/Sent Items, and failure-safe state.
-4. **Stage 6C:** exercise real conflict intelligence and validate lifecycle analytics against actual production records.
-5. **Security migration:** decide/configure/test `TOKEN_ENCRYPTION_KEY` with existing connected accounts before enforcing encrypted token storage.
-6. **Stage 7:** exercise `/memory` with real booked meetings, persistence/reload, editable generated memory, and repeated-attendee continuity.
-7. **Close issue #23 only when those provider/environment activation checks pass.**
-8. **Only after repeated product value is demonstrated:** define the paid product boundary and then do billing readiness.
+1. **Priority 0:** complete the dedicated Outlook-only production run in issue #14.
+2. **Priority 0:** complete the real-provider revoked-token, hold/promotion failure, and delivery-warning checks in issue #14.
+3. **Stage 6A:** verify real provider-backed intelligence in production and deterministic fallback behavior.
+4. **Stage 6B:** verify edited Gmail/Outlook follow-up sends, inbox/Sent Items, and failure-safe state.
+5. **Stage 6C:** exercise real conflict intelligence and validate lifecycle analytics against actual production records.
+6. **Security migration:** decide/configure/test `TOKEN_ENCRYPTION_KEY` with existing connected accounts before enforcing encrypted token storage.
+7. **Stage 7:** exercise real meeting memory persistence/reload and repeated-attendee continuity.
+8. **Close issues #14/#23 only when their real-provider/environment exit criteria pass.**
+9. **Only after repeated product value is demonstrated:** define the paid product boundary and then do billing readiness.
 
 The roadmap should advance from here based on verified product behavior, not feature count.
