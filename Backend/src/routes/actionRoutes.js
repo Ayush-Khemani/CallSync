@@ -41,12 +41,22 @@ router.get('/actions', authMiddleware, asyncHandler(async (req, res) => {
     throw new HttpError(400, 'status must be all, open, or completed');
   }
 
+  const requestedMeetingId = req.query.meetingId === undefined ? null : Number(req.query.meetingId);
+  if (requestedMeetingId !== null && !Number.isInteger(requestedMeetingId)) {
+    throw new HttpError(400, 'meetingId must be a valid meeting ID');
+  }
+
   const params = [req.userId];
-  let statusClause = '';
+  const filters = [];
   if (requestedStatus !== 'all') {
     params.push(requestedStatus);
-    statusClause = 'AND a.status = $2';
+    filters.push(`a.status = ${params.length}`);
   }
+  if (requestedMeetingId !== null) {
+    params.push(requestedMeetingId);
+    filters.push(`a.meeting_id = ${params.length}`);
+  }
+  const filterClause = filters.length ? `AND ${filters.join(' AND ')}` : '';
 
   const result = await pool.query(
     `SELECT
@@ -64,7 +74,7 @@ router.get('/actions', authMiddleware, asyncHandler(async (req, res) => {
       m.meeting_type
     FROM meeting_actions a
     JOIN meetings m ON m.id = a.meeting_id
-    WHERE a.user_id = $1 ${statusClause}
+    WHERE a.user_id = $1 ${filterClause}
     ORDER BY
       CASE WHEN a.status = 'open' THEN 0 ELSE 1 END,
       a.due_at ASC NULLS LAST,
