@@ -9,7 +9,7 @@ Calendar sync is infrastructure; the durable meeting record and lifecycle are th
 See:
 
 - [Product roadmap](docs/PRODUCT_ROADMAP.md)
-- [Current roadmap status](docs/ROADMAP_STATUS_2026-08-23.md)
+- [Current roadmap status](docs/ROADMAP_STATUS_2026-09-04.md)
 - [Microsoft OAuth production setup](docs/MICROSOFT_OAUTH_SETUP.md)
 - [OAuth token-encryption rollout](Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md)
 
@@ -29,7 +29,12 @@ CallSync currently includes:
 - public guest booking and qualification questions;
 - selected-hold promotion into the real attendee meeting;
 - unused-hold cleanup and cancellation cleanup;
+- Today daily execution queue for upcoming meetings, stale invites, missing outcomes, and due commitments;
 - meeting pipeline and lifecycle analytics;
+- durable meeting Action Engine with outcome-backed and manual commitments;
+- Actions workspace with open/completed/overdue views;
+- Relationships workspace derived from repeated-attendee meeting history;
+- meeting-record Actions for adding, completing, and reopening commitments in context;
 - editable AI-assisted meeting briefs with deterministic fallback;
 - editable follow-up, pre-call, opening-prompt, and next-step suggestions;
 - connected Gmail/Outlook follow-up sending;
@@ -213,14 +218,15 @@ Public operational checks:
 
 ## Release state
 
-The implementation stack through Stage 7 is shipped. Current work is focused on production activation and reliability rather than adding another large feature stage.
+The implementation stack through Stage 7 plus the Today / Actions / Relationships productization layer through PR #40 is shipped. Current work is focused on production activation, repeated real usage, and reliability rather than adding another large feature stage.
 
 Priority order:
 
-1. finish Priority 0 Google/Outlook real-provider verification;
-2. verify provider-backed AI generation and deterministic fallback in production;
-3. verify connected Gmail/Outlook follow-up sending;
-4. validate coordination intelligence and lifecycle analytics against real records;
-5. execute the OAuth token-encryption rollout safely;
-6. verify durable meeting memory and repeated-attendee continuity in production;
-7. define the paid-product boundary only after repeated product value is demonstrated.
+1. finish the dedicated Outlook-only Priority 0 production run;
+2. finish Priority 0 real-provider revoked-token and delivery/failure-path checks;
+3. verify provider-backed AI generation and deterministic fallback in production;
+4. verify connected Gmail/Outlook follow-up sending;
+5. validate coordination intelligence and lifecycle analytics against real records;
+6. execute the OAuth token-encryption rollout safely;
+7. verify durable meeting memory and repeated-attendee continuity in production;
+8. define the paid-product boundary only after repeated product value is demonstrated.
