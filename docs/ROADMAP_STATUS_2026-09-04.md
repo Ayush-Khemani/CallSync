@@ -5,7 +5,7 @@ This snapshot records the current CallSync implementation/release state against 
 ## Current source baseline
 
 - `main` is `eeb7aad832b0204d5f1e8dae1b5ea93895b028a1` — meeting-record Action management on top of the relationship and daily-execution product layers.
-- Backend production deployment for this merge is green; frontend production rollout is being rechecked after merge.
+- Frontend and backend production deployments for this merge are green on Vercel.
 - Both frontend and backend had no grouped Vercel runtime-error clusters in the preceding 7-day check on 2026-09-04.
 - Priority 0 issue #14 remains open.
 - Stage 6–7 activation issue #23 remains open.
