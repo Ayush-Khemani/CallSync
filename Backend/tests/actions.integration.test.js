@@ -144,7 +144,37 @@ function request(method, path, body, headers = {}) {
   assert.equal(twoOpen.body.actions.length, 2);
   console.log('ok - manual meeting actions can coexist with the outcome action');
 
-  console.log('4 meeting action integration tests passed');
+  const secondMeetingRequest = await request('POST', '/api/meetings/create', {
+    attendeeEmail: 'jamie@example.com',
+    attendeeName: 'Jamie Smith',
+    slots: ['2026-09-24T10:00:00.000Z'],
+    durationMinutes: 30,
+    brief: { type: 'Customer discovery', goal: 'Understand the current workflow.' },
+  }, headers);
+  assert.equal(secondMeetingRequest.statusCode, 201);
+
+  const refreshedMeetings = await request('GET', '/api/meetings', null, headers);
+  const secondMeeting = refreshedMeetings.body.meetings.find((item) => item.uniqueLink === secondMeetingRequest.body.uniqueLink);
+  const secondAction = await request('POST', `/api/meetings/${secondMeeting.id}/actions`, {
+    title: 'Send the discovery notes.',
+  }, headers);
+  assert.equal(secondAction.statusCode, 201);
+
+  const scopedFirstMeeting = await request('GET', `/api/actions?status=open&meetingId=${meeting.id}`, null, headers);
+  assert.equal(scopedFirstMeeting.statusCode, 200);
+  assert.equal(scopedFirstMeeting.body.actions.length, 2);
+  assert.equal(scopedFirstMeeting.body.actions.every((item) => item.meetingId === meeting.id), true);
+
+  const scopedSecondMeeting = await request('GET', `/api/actions?status=all&meetingId=${secondMeeting.id}`, null, headers);
+  assert.equal(scopedSecondMeeting.statusCode, 200);
+  assert.equal(scopedSecondMeeting.body.actions.length, 1);
+  assert.equal(scopedSecondMeeting.body.actions[0].meetingId, secondMeeting.id);
+
+  const invalidMeetingFilter = await request('GET', '/api/actions?meetingId=not-a-number', null, headers);
+  assert.equal(invalidMeetingFilter.statusCode, 400);
+  console.log('ok - action queries can be scoped safely to one meeting');
+
+  console.log('5 meeting action integration tests passed');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;
