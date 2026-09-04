@@ -89,6 +89,8 @@ export default function MeetingRecordPage() {
   const [followUpDraft, setFollowUpDraft] = useState('');
   const [outcome, setOutcome] = useState(null);
   const [memory, setMemory] = useState(null);
+  const [actions, setActions] = useState([]);
+  const [newAction, setNewAction] = useState({ title: '', dueAt: '' });
   const [internalNotes, setInternalNotes] = useState('');
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
@@ -98,12 +100,13 @@ export default function MeetingRecordPage() {
     setLoading(true);
     setMessage('');
     try {
-      const [meetingsResponse, followUpResponse, outcomeResponse, memoryResponse, integrationsResponse] = await Promise.all([
+      const [meetingsResponse, followUpResponse, outcomeResponse, memoryResponse, integrationsResponse, actionsResponse] = await Promise.all([
         axios.get(`${API_URL}/api/meetings`, { headers: authHeaders() }),
         axios.get(`${API_URL}/api/meetings/follow-up-state`, { headers: authHeaders() }).catch(() => ({ data: { followUps: [] } })),
         axios.get(`${API_URL}/api/meetings/outcome-state`, { headers: authHeaders() }).catch(() => ({ data: { outcomes: [] } })),
         axios.get(`${API_URL}/api/meetings/memory-state`, { headers: authHeaders() }).catch(() => ({ data: { memories: [] } })),
         axios.get(`${API_URL}/api/integrations/status`, { headers: authHeaders() }).catch(() => ({ data: { google: {}, outlook: {} } })),
+        axios.get(`${API_URL}/api/actions?status=all&meetingId=${meetingId}`, { headers: authHeaders() }).catch(() => ({ data: { actions: [] } })),
       ]);
 
       const base = (meetingsResponse.data.meetings || []).find((item) => item.id === meetingId);
@@ -125,6 +128,7 @@ export default function MeetingRecordPage() {
       setFollowUpDraft(buildFollowUpMessage(merged, `${window.location.origin}/select-slot/${merged.uniqueLink}`));
       setOutcome(outcomeDraft(merged));
       setMemory(memoryDraft(savedMemory));
+      setActions(actionsResponse.data.actions || []);
       setInternalNotes(merged.internalNotes || '');
     } catch (error) {
       setMessage(error.response?.data?.error || 'Could not load this meeting record.');
@@ -155,9 +159,23 @@ export default function MeetingRecordPage() {
   const canSendGoogle = Boolean(integrations.google?.mailSendEnabled);
   const canSendOutlook = Boolean(integrations.outlook?.mailSendEnabled);
   const bookingUrl = `${window.location.origin}/select-slot/${meeting.uniqueLink}`;
+  const openActionCount = actions.filter((action) => action.status === 'open').length;
+  const sortedActions = [...actions].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
+    const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+    const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+    return aDue - bDue;
+  });
 
   function updateMeeting(patch) {
     setMeeting((current) => ({ ...current, ...patch }));
+  }
+
+  async function refreshActions() {
+    const response = await axios.get(`${API_URL}/api/actions?status=all&meetingId=${meeting.id}`, { headers: authHeaders() });
+    const nextActions = response.data.actions || [];
+    setActions(nextActions);
+    return nextActions;
   }
 
   async function copyBookingLink() {
@@ -297,9 +315,47 @@ export default function MeetingRecordPage() {
       const saved = response.data.outcome;
       updateMeeting(saved);
       setOutcome(outcomeDraft({ ...meeting, ...saved }));
+      refreshActions().catch(() => {});
       setMessage('Outcome saved to the meeting record.');
     } catch (error) {
       setMessage(error.response?.data?.error || 'Could not save the meeting outcome.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function createMeetingAction() {
+    const title = newAction.title.trim();
+    if (!title) {
+      setMessage('Describe the commitment before adding it.');
+      return;
+    }
+
+    setBusy('action-create');
+    setMessage('');
+    try {
+      const dueAt = newAction.dueAt ? new Date(newAction.dueAt).toISOString() : null;
+      const response = await axios.post(`${API_URL}/api/meetings/${meeting.id}/actions`, { title, dueAt }, { headers: authHeaders() });
+      setActions((current) => [...current, response.data.action]);
+      setNewAction({ title: '', dueAt: '' });
+      setMessage('Action added to this meeting.');
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Could not add the meeting action.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function setMeetingActionStatus(actionId, status) {
+    setBusy(`action-${actionId}`);
+    setMessage('');
+    try {
+      const response = await axios.patch(`${API_URL}/api/actions/${actionId}`, { status }, { headers: authHeaders() });
+      const updated = response.data.action;
+      setActions((current) => current.map((action) => action.actionId === actionId ? updated : action));
+      setMessage(status === 'completed' ? 'Action completed.' : 'Action reopened.');
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Could not update the meeting action.');
     } finally {
       setBusy('');
     }
@@ -360,6 +416,7 @@ export default function MeetingRecordPage() {
     ['prepare', 'Prepare'],
     ['followup', 'Follow-up'],
     ['outcome', 'Outcome'],
+    ['actions', 'Actions'],
     ['memory', 'Memory'],
     ['activity', 'Activity'],
   ];
@@ -460,6 +517,47 @@ export default function MeetingRecordPage() {
               <label><span>Follow-up date</span><input type="datetime-local" value={outcome.followUpAt} onChange={(event) => setOutcomeField('followUpAt', event.target.value)} /></label>
               <label className="wide"><span>Outcome notes</span><textarea className="mr-editor tall" value={outcome.notes} onChange={(event) => setOutcomeField('notes', event.target.value)} placeholder="Decisions, objections, commitments, or context worth carrying forward." /></label>
             </div>}
+          </section>
+        )}
+
+        {activeTab === 'actions' && (
+          <section className="mr-card mr-focus-card">
+            <div className="mr-card-head">
+              <div><span className="mr-label">Meeting commitments</span><h2>Keep next steps attached to the conversation.</h2></div>
+              <span className="mr-meta-pill">{openActionCount} open</span>
+            </div>
+
+            <div className="mr-record-action-create">
+              <label>
+                <span>Action</span>
+                <input value={newAction.title} onChange={(event) => setNewAction((current) => ({ ...current, title: event.target.value }))} placeholder="Example: Send the updated deck" />
+              </label>
+              <label>
+                <span>Due date</span>
+                <input type="datetime-local" value={newAction.dueAt} onChange={(event) => setNewAction((current) => ({ ...current, dueAt: event.target.value }))} />
+              </label>
+              <button className="pw-primary-button" type="button" disabled={busy === 'action-create'} onClick={createMeetingAction}>{busy === 'action-create' ? 'Adding…' : 'Add action'}</button>
+            </div>
+
+            {sortedActions.length ? (
+              <div className="mr-record-actions">
+                {sortedActions.map((action) => (
+                  <article className={`mr-record-action status-${action.status}`} key={action.actionId}>
+                    <div>
+                      <div className="mr-record-action-meta">
+                        <span>{action.source === 'outcome' ? 'From outcome' : 'Manual action'}</span>
+                        <span>{action.status === 'completed' ? 'Completed' : 'Open'}</span>
+                      </div>
+                      <strong>{action.title}</strong>
+                      <small>{action.dueAt ? `Due ${formatDateTime(action.dueAt)}` : 'No due date'}</small>
+                    </div>
+                    <button className="pw-secondary-button" type="button" disabled={busy === `action-${action.actionId}`} onClick={() => setMeetingActionStatus(action.actionId, action.status === 'open' ? 'completed' : 'open')}>
+                      {busy === `action-${action.actionId}` ? 'Saving…' : action.status === 'open' ? 'Complete' : 'Reopen'}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : <div className="mr-empty-tab">No commitments are attached to this meeting yet.</div>}
           </section>
         )}
 
