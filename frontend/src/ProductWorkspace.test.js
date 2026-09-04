@@ -64,6 +64,7 @@ function mockApi() {
     if (url.includes('/api/meetings/follow-up-state')) return Promise.resolve({ data: { followUps: [] } });
     if (url.includes('/api/meetings/outcome-state')) return Promise.resolve({ data: { outcomes: [] } });
     if (url.includes('/api/meetings/memory-state')) return Promise.resolve({ data: { memories: [] } });
+    if (url.includes('/api/actions?status=all&meetingId=7')) return Promise.resolve({ data: { actions: [action] } });
     if (url.includes('/api/actions?status=open')) return Promise.resolve({ data: { actions: [action] } });
     if (url.includes('/api/integrations/status')) return Promise.resolve({ data: { google: { mailSendEnabled: true }, outlook: { mailSendEnabled: true } } });
     if (url.includes('/api/analytics/meeting-lifecycle')) return Promise.resolve({ data: { allTime: { rates: { booking: 100, outcomeCapture: 0 }, outcomesRecorded: 0 } } });
@@ -77,7 +78,7 @@ beforeEach(() => {
   axios.get.mockReset();
   axios.post.mockReset();
   axios.patch.mockReset();
-  axios.patch.mockResolvedValue({ data: { message: 'Action completed' } });
+  axios.patch.mockResolvedValue({ data: { message: 'Action completed', action: { ...action, status: 'completed', completedAt: '2026-08-24T14:00:00.000Z' } } });
   mockApi();
 });
 
@@ -114,7 +115,7 @@ test('Today surfaces durable meeting actions and can complete them without leavi
   await waitFor(() => expect(screen.queryByText('Send the updated investor deck')).not.toBeInTheDocument());
 });
 
-test('meeting record centralizes overview, preparation, follow-up, outcome, memory and activity navigation', async () => {
+test('meeting record centralizes preparation, outcome, actions, memory and activity navigation', async () => {
   window.history.pushState({}, '', '/meeting/7');
   render(<MeetingRecordPage />);
 
@@ -123,8 +124,20 @@ test('meeting record centralizes overview, preparation, follow-up, outcome, memo
   expect(screen.getByRole('button', { name: 'Prepare' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Follow-up' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Outcome' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Actions' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Memory' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Activity' })).toBeInTheDocument();
   expect(screen.getByText('Northstar Ventures')).toBeInTheDocument();
   expect(screen.getByDisplayValue('Review the current deck.')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+  await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
+  fireEvent.click(screen.getByRole('button', { name: 'Complete' }));
+
+  await waitFor(() => expect(axios.patch).toHaveBeenCalledWith(
+    expect.stringContaining('/api/actions/3'),
+    { status: 'completed' },
+    expect.objectContaining({ headers: expect.any(Object) })
+  ));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Reopen' })).toBeInTheDocument());
 });
