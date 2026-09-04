@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import TodayView from './TodayView';
 import PipelineView from './PipelineView';
+import RelationshipsView from './RelationshipsView';
 import ActionsView from './ActionsView';
 import CreateMeetingView from './CreateMeetingView';
 import CalendarsView from './CalendarsView';
@@ -23,6 +24,7 @@ export default function ProductWorkspace() {
   const navigation = [
     ['today', 'Today', '●'],
     ['pipeline', 'Pipeline', '▦'],
+    ['relationships', 'Relationships', '◎'],
     ['actions', 'Actions', '✓'],
     ['create', 'New meeting', '+'],
     ['calendars', 'Calendars', '◫'],
@@ -40,13 +42,14 @@ export default function ProductWorkspace() {
           </nav>
         </div>
         <div className="pw-sidebar-foot">
-          <div className="pw-sidebar-note"><span>Workspace</span><strong>Meeting OS</strong><small>Create → book → prepare → act</small></div>
+          <div className="pw-sidebar-note"><span>Workspace</span><strong>Meeting OS</strong><small>Meet → remember → act → continue</small></div>
           <button type="button" onClick={logout}>Sign out</button>
         </div>
       </aside>
       <section className="pw-main">
         {tab === 'today' && <TodayView onCreate={() => setTab('create')} onPipeline={() => setTab('pipeline')} />}
         {tab === 'pipeline' && <PipelineView onCreate={() => setTab('create')} />}
+        {tab === 'relationships' && <RelationshipsView />}
         {tab === 'actions' && <ActionsView />}
         {tab === 'create' && <CreateMeetingView onDone={() => setTab('pipeline')} />}
         {tab === 'calendars' && <CalendarsView />}
