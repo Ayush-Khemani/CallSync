@@ -171,6 +171,7 @@ router.post('/agent/actions/:id/confirm', authMiddleware, asyncHandler(async (re
       content,
       payload: {
         type: 'created',
+        actionId: action.id,
         meetingId: result.meetingId,
         meetingName: stored.attendeeName,
         uniqueLink: result.uniqueLink,
