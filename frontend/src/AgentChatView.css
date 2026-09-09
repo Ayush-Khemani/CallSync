@@ -331,3 +331,67 @@
   .agent-confirm-row > button { width: 100%; }
   .agent-message-body { max-width: 94%; }
 }
+
+
+.agent-person-result {
+  width: min(680px, 100%);
+  display: grid;
+  gap: 8px;
+}
+.agent-person-head {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid #e1e4e1;
+  border-radius: 10px;
+  background: #fff;
+}
+.agent-person-head > div { min-width: 0; display: grid; gap: 2px; }
+.agent-person-head strong { color: #384348; font-size: 10px; }
+.agent-person-head span { color: #979da1; font-size: 7px; }
+.agent-person-head b {
+  flex: 0 0 auto;
+  color: #80888c;
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.agent-precall-card { display: grid; gap: 12px; }
+.agent-precall-goal {
+  margin: 0;
+  color: #596469;
+  font-size: 10px;
+  line-height: 1.55;
+}
+.agent-precall-agenda {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0 0 0 18px;
+  color: #566166;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.agent-opening {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #f5f7f5;
+}
+.agent-opening span {
+  color: #92999c;
+  font-size: 7px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.agent-opening strong {
+  color: #465157;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.agent-slot-list button:disabled { cursor: default; opacity: .72; }

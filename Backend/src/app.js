@@ -12,6 +12,7 @@ const followUpRoutes = require('./routes/followUpRoutes');
 const outcomeRoutes = require('./routes/outcomeRoutes');
 const actionRoutes = require('./routes/actionRoutes');
 const intelligenceRoutes = require('./routes/intelligenceRoutes');
+const agentRoutes = require('./routes/agentRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const rateLimiter = require('./middleware/rateLimiter');
 const securityHeaders = require('./middleware/securityHeaders');
@@ -73,6 +74,7 @@ app.use('/api', followUpRoutes);
 app.use('/api', outcomeRoutes);
 app.use('/api', actionRoutes);
 app.use('/api', intelligenceRoutes);
+app.use('/api', agentRoutes);
 app.use('/api', memoryRoutes);
 app.use('/api', meetingRoutes);
 
