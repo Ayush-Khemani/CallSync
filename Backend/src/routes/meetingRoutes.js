@@ -3,17 +3,15 @@ const pool = require('../db/pool');
 const authMiddleware = require('../middleware/auth');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
-const { createMeetingLinkToken } = require('../utils/links');
 const {
-  createGoogleEvent,
-  createOutlookEvent,
   updateGoogleEvent,
   updateOutlookEvent,
   deleteGoogleEvent,
   deleteOutlookEvent,
   serializeCalendarToken,
 } = require('../services/calendarService');
-const { sendMeetingRequest, sendMeetingConfirmation } = require('../services/emailService');
+const { sendMeetingConfirmation } = require('../services/emailService');
+const { createMeetingRequest } = require('../services/meetingCreationService');
 
 const router = express.Router();
 
@@ -105,166 +103,8 @@ function providerReady(connected, result) {
 }
 
 router.post('/meetings/create', authMiddleware, asyncHandler(async (req, res) => {
-  validateMeetingPayload(req.body);
-  const { attendeeEmail, attendeeName, slots } = req.body;
-  const brief = normalizeBrief(req.body.brief);
-  const durationMinutes = normalizeDurationMinutes(req.body.durationMinutes);
-  const uniqueLink = createMeetingLinkToken();
-
-  const client = await pool.connect();
-  let meetingId;
-  try {
-    await client.query('BEGIN');
-
-    const meetingResult = await client.query(
-      `INSERT INTO meetings (
-        user_id,
-        attendee_email,
-        attendee_name,
-        unique_link,
-        meeting_type,
-        meeting_goal,
-        invite_message,
-        qualification_questions,
-        internal_notes,
-        duration_minutes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
-      RETURNING id`,
-      [
-        req.userId,
-        attendeeEmail,
-        attendeeName,
-        uniqueLink,
-        brief.type,
-        brief.goal,
-        brief.inviteMessage,
-        JSON.stringify(brief.qualificationQuestions),
-        brief.internalNotes,
-        durationMinutes,
-      ]
-    );
-
-    meetingId = meetingResult.rows[0].id;
-    for (const slot of slots) {
-      if (Number.isNaN(new Date(slot).getTime())) {
-        throw new HttpError(400, `Invalid slot time: ${slot}`);
-      }
-      await client.query(
-        'INSERT INTO slots (meeting_id, slot_time) VALUES ($1, $2)',
-        [meetingId, slot]
-      );
-    }
-
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-
-  const userResult = await pool.query('SELECT google_token, outlook_token FROM users WHERE id = $1', [req.userId]);
-  const user = userResult.rows[0] || {};
-  const slotRows = await pool.query('SELECT id, slot_time FROM slots WHERE meeting_id = $1 ORDER BY slot_time', [meetingId]);
-  const saveGoogleToken = (tokenBundle) => pool.query(
-    'UPDATE users SET google_token = $1 WHERE id = $2',
-    [serializeCalendarToken(tokenBundle), req.userId]
-  );
-  const saveOutlookToken = (tokenBundle) => pool.query(
-    'UPDATE users SET outlook_token = $1 WHERE id = $2',
-    [serializeCalendarToken(tokenBundle), req.userId]
-  );
-  const holdSummary = `CallSync hold — ${brief.type}`;
-
-  const holdDeliveries = await Promise.all(slotRows.rows.map(async (slot) => {
-    const [google, outlook] = await Promise.all([
-      user.google_token
-        ? attemptExternal('Google calendar hold creation failed', () => createGoogleEvent(
-          user.google_token,
-          slot.slot_time,
-          null,
-          { durationMinutes, summary: holdSummary, onTokenRefresh: saveGoogleToken }
-        ))
-        : skippedExternal(),
-      user.outlook_token
-        ? attemptExternal('Outlook calendar hold creation failed', () => createOutlookEvent(
-          user.outlook_token,
-          slot.slot_time,
-          null,
-          { durationMinutes, summary: holdSummary, onTokenRefresh: saveOutlookToken }
-        ))
-        : skippedExternal(),
-    ]);
-
-    await pool.query(
-      'UPDATE slots SET google_event_id = $1, outlook_event_id = $2 WHERE id = $3',
-      [google.value, outlook.value, slot.id]
-    );
-
-    return { slot, google, outlook };
-  }));
-
-  const googleHoldsReady = !user.google_token || holdDeliveries.every((item) => item.google.ok && item.google.value);
-  const outlookHoldsReady = !user.outlook_token || holdDeliveries.every((item) => item.outlook.ok && item.outlook.value);
-
-  if (!googleHoldsReady || !outlookHoldsReady) {
-    await Promise.all(holdDeliveries.map(async (item) => {
-      await Promise.all([
-        item.google.value
-          ? attemptExternal('Google calendar hold rollback failed', () => deleteGoogleEvent(
-            user.google_token,
-            item.google.value,
-            { onTokenRefresh: saveGoogleToken }
-          ))
-          : Promise.resolve(skippedExternal()),
-        item.outlook.value
-          ? attemptExternal('Outlook calendar hold rollback failed', () => deleteOutlookEvent(
-            user.outlook_token,
-            item.outlook.value,
-            { onTokenRefresh: saveOutlookToken }
-          ))
-          : Promise.resolve(skippedExternal()),
-      ]);
-    }));
-    await pool.query('DELETE FROM meetings WHERE id = $1 AND user_id = $2', [meetingId, req.userId]);
-    throw new HttpError(502, 'Could not protect every offered slot on your connected calendars. No meeting request was sent.');
-  }
-
-  const requestEmail = await sendMeetingRequest({
-    attendeeEmail,
-    attendeeName,
-    slots,
-    uniqueLink,
-    meetingType: brief.type,
-    inviteMessage: brief.inviteMessage,
-  });
-
-  if (requestEmail.sent) {
-    await pool.query(
-      'UPDATE meetings SET request_email_sent_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [meetingId]
-    );
-  } else {
-    console.error('Meeting request email was not confirmed as sent', {
-      meetingId,
-      reason: requestEmail.reason,
-      code: requestEmail.code,
-      status: requestEmail.status,
-    });
-  }
-
-  res.status(201).json({
-    message: 'Meeting created',
-    uniqueLink,
-    durationMinutes,
-    delivery: {
-      requestEmail: { sent: Boolean(requestEmail.sent), reason: requestEmail.reason || null },
-      calendarHolds: {
-        google: { connected: Boolean(user.google_token), ready: googleHoldsReady },
-        outlook: { connected: Boolean(user.outlook_token), ready: outlookHoldsReady },
-      },
-    },
-  });
+  const result = await createMeetingRequest({ userId: req.userId, payload: req.body });
+  res.status(201).json(result);
 }));
 
 router.get('/meetings', authMiddleware, asyncHandler(async (req, res) => {
