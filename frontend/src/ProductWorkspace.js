@@ -7,6 +7,7 @@ import CreateMeetingView from './CreateMeetingView';
 import CalendarsView from './CalendarsView';
 import { Brand } from './workspaceShared';
 import './ProductWorkspace.css';
+import './WorkspaceRefinement.css';
 
 export default function ProductWorkspace() {
   const [tab, setTab] = useState('today');
@@ -26,8 +27,6 @@ export default function ProductWorkspace() {
     ['pipeline', 'Pipeline', '▦'],
     ['relationships', 'Relationships', '◎'],
     ['actions', 'Actions', '✓'],
-    ['create', 'New meeting', '+'],
-    ['calendars', 'Calendars', '◫'],
   ];
 
   return (
@@ -37,13 +36,14 @@ export default function ProductWorkspace() {
           <Brand />
           <nav className="pw-nav" aria-label="Workspace navigation">
             {navigation.map(([id, label, icon]) => (
-              <button type="button" key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><span>{icon}</span>{label}</button>
+              <button type="button" key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><span>{icon}</span>{label}</button>
             ))}
           </nav>
+          <button className="pw-sidebar-create" type="button" onClick={() => setTab('create')}><span>+</span>New meeting</button>
         </div>
         <div className="pw-sidebar-foot">
-          <div className="pw-sidebar-note"><span>Workspace</span><strong>Meeting OS</strong><small>Meet → remember → act → continue</small></div>
-          <button type="button" onClick={logout}>Sign out</button>
+          <button className={tab === 'calendars' ? 'pw-sidebar-utility active' : 'pw-sidebar-utility'} type="button" onClick={() => setTab('calendars')}><span>◫</span>Calendars</button>
+          <button className="pw-sidebar-signout" type="button" onClick={logout}>Sign out</button>
         </div>
       </aside>
       <section className="pw-main">

@@ -63,7 +63,7 @@ test('completes and reopens actions from the action ledger', async () => {
   await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
 
   fireEvent.click(screen.getByRole('button', { name: /Complete Send the updated investor deck/i }));
-  fireEvent.click(screen.getByRole('button', { name: 'Completed' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Completed/i }));
   await waitFor(() => expect(screen.getByRole('button', { name: /Reopen Send the updated investor deck/i })).toBeInTheDocument());
 
   fireEvent.click(screen.getByRole('button', { name: /Reopen Send the updated investor deck/i }));
@@ -87,9 +87,10 @@ test('creates a manual action attached to a meeting', async () => {
   render(<ActionsView />);
   await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
 
+  fireEvent.click(screen.getByRole('button', { name: '+ Add action' }));
   fireEvent.change(screen.getByLabelText('Meeting'), { target: { value: '7' } });
   fireEvent.change(screen.getByLabelText('Action'), { target: { value: 'Ask for the partner meeting date' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Add action' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
   await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
     expect.stringContaining('/api/meetings/7/actions'),

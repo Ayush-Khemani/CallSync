@@ -5,7 +5,6 @@ import { API_URL, authHeaders, formatShortDate } from './workspaceShared';
 
 export default function PipelineView({ onCreate }) {
   const [meetings, setMeetings] = useState([]);
-  const [analytics, setAnalytics] = useState(null);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -14,10 +13,9 @@ export default function PipelineView({ onCreate }) {
     setLoading(true);
     setMessage('');
     try {
-      const [meetingsResponse, followUpResponse, analyticsResponse] = await Promise.all([
+      const [meetingsResponse, followUpResponse] = await Promise.all([
         axios.get(`${API_URL}/api/meetings`, { headers: authHeaders() }),
         axios.get(`${API_URL}/api/meetings/follow-up-state`, { headers: authHeaders() }).catch(() => ({ data: { followUps: [] } })),
-        axios.get(`${API_URL}/api/analytics/meeting-lifecycle`, { headers: authHeaders() }).catch(() => ({ data: null })),
       ]);
 
       const followUpById = new Map((followUpResponse.data.followUps || []).map((item) => [item.meetingId, item]));
@@ -31,7 +29,6 @@ export default function PipelineView({ onCreate }) {
         }),
       }));
       setMeetings(nextMeetings);
-      setAnalytics(analyticsResponse.data?.allTime || null);
     } catch (error) {
       setMessage(error.response?.data?.error || 'Could not load the meeting pipeline.');
     } finally {
@@ -55,7 +52,6 @@ export default function PipelineView({ onCreate }) {
   const pipeline = useMemo(() => getMeetingPipelineStages(visibleMeetings), [visibleMeetings]);
   const booked = meetings.filter((meeting) => meeting.status === 'confirmed').length;
   const followUpDue = meetings.filter(needsFollowUp).length;
-  const bookingRate = analytics?.rates?.booking ?? (meetings.length ? Math.round((booked / meetings.length) * 100) : 0);
 
   return (
     <section className="pw-page pw-pipeline-page">
@@ -63,16 +59,15 @@ export default function PipelineView({ onCreate }) {
         <div>
           <p className="pw-kicker">Meeting pipeline</p>
           <h1>Every conversation, one clear next state.</h1>
-          <p>Use the board to scan progress. Open a meeting when you need the full record.</p>
+          <p>Scan the lifecycle, find what is stuck, and open the meeting only when you need the details.</p>
         </div>
         <button className="pw-primary-button" type="button" onClick={onCreate}>+ New meeting</button>
       </header>
 
-      <div className="pw-metrics" aria-label="Pipeline summary">
-        <article><span>Total requests</span><strong>{meetings.length}</strong><small>All meeting records</small></article>
-        <article><span>Booked</span><strong>{booked}</strong><small>{bookingRate}% booking rate</small></article>
-        <article><span>Needs attention</span><strong>{followUpDue}</strong><small>Follow-up or delivery issue</small></article>
-        <article><span>Outcome capture</span><strong>{analytics?.rates?.outcomeCapture ?? 0}%</strong><small>{analytics?.outcomesRecorded ?? 0} recorded</small></article>
+      <div className="pipeline-overview" aria-label="Pipeline summary">
+        <span><strong>{followUpDue}</strong> need attention</span>
+        <span><strong>{booked}</strong> booked</span>
+        <span><strong>{meetings.length}</strong> total</span>
       </div>
 
       <div className="pw-board-toolbar">
@@ -111,7 +106,6 @@ export default function PipelineView({ onCreate }) {
                         <span className={`pw-status-dot status-${meeting.status}`} aria-label={meeting.status} />
                       </div>
                       <h3>{meeting.attendeeName || 'Unnamed guest'}</h3>
-                      <p className="pw-card-email">{meeting.attendeeEmail}</p>
                       <div className="pw-card-meta">
                         <span>{meeting.status === 'confirmed' ? 'Meeting time' : meeting.status === 'cancelled' ? 'Closed' : 'Created'}</span>
                         <strong>{meeting.status === 'confirmed' ? formatShortDate(meeting.selectedSlot) : formatShortDate(meeting.createdAt)}</strong>
@@ -119,8 +113,8 @@ export default function PipelineView({ onCreate }) {
                       {risk.level !== 'none' && (
                         <div className={`pw-risk risk-${risk.level}`}><span>{risk.label}</span><small>{risk.detail}</small></div>
                       )}
-                      {meeting.status === 'confirmed' && meeting.durationMinutes && <div className="pw-card-foot"><span>{meeting.durationMinutes} min</span><span>Open record →</span></div>}
-                      {meeting.status !== 'confirmed' && <div className="pw-card-foot"><span>{meeting.slotCount || 0} offered slot{meeting.slotCount === 1 ? '' : 's'}</span><span>Open record →</span></div>}
+                      {meeting.status === 'confirmed' && meeting.durationMinutes && <div className="pw-card-foot"><span>{meeting.durationMinutes} min</span></div>}
+                      {meeting.status !== 'confirmed' && <div className="pw-card-foot"><span>{meeting.slotCount || 0} offered slot{meeting.slotCount === 1 ? '' : 's'}</span></div>}
                     </a>
                   );
                 })}

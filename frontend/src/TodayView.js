@@ -116,62 +116,46 @@ export default function TodayView({ onCreate, onPipeline }) {
         <div>
           <p className="pw-kicker">Today</p>
           <h1>What needs your attention?</h1>
-          <p>CallSync turns the meeting lifecycle into a short working queue: prepare, follow up, capture outcomes, and keep momentum moving.</p>
+          <p>Your meeting work, ordered by what deserves attention first.</p>
         </div>
         <button className="pw-primary-button" type="button" onClick={onCreate}>+ New meeting</button>
       </header>
 
-      <div className="today-summary">
-        <article>
-          <span>Needs action</span>
-          <strong>{attentionCount}</strong>
-          <small>Commitments, follow-ups and missing outcomes</small>
-        </article>
-        <article>
-          <span>Next 24 hours</span>
-          <strong>{workspace.upcoming.length}</strong>
-          <small>{firstUpcoming ? `Next: ${firstUpcoming.attendeeName || firstUpcoming.attendeeEmail}` : 'No booked meetings coming up'}</small>
-        </article>
-        <article>
-          <span>Waiting for booking</span>
-          <strong>{workspace.waiting.length}</strong>
-          <small>Open meeting requests</small>
-        </article>
+      <div className="today-overview-line">
+        <div><strong>{attentionCount}</strong><span>{attentionCount === 1 ? 'item needs attention' : 'items need attention'}</span></div>
+        <div><span>Next meeting</span><b>{firstUpcoming ? `${firstUpcoming.attendeeName || firstUpcoming.attendeeEmail} · ${formatShortDate(firstUpcoming.selectedSlot)}` : 'Nothing booked in the next 24 hours'}</b></div>
+        <button className="pw-secondary-button" type="button" onClick={onPipeline}>Open pipeline →</button>
       </div>
 
       {message && <div className="pw-message success">{message}</div>}
       {loading && !meetings.length && <div className="pw-loading-card">Building your daily meeting queue…</div>}
 
       {!loading && (
-        <div className="today-layout">
-          <div className="today-primary">
-            <Section title="Next up" count={workspace.upcoming.length} empty="Nothing booked in the next 24 hours.">
-              {workspace.upcoming.map((meeting) => (
-                <MeetingRow key={meeting.id} meeting={meeting} eyebrow="Upcoming meeting" detail={formatShortDate(meeting.selectedSlot)} action="Prepare" />
-              ))}
-            </Section>
+        <div className="today-primary">
+          <Section title="Needs action" count={attentionCount} empty="You are caught up. No commitments, follow-ups or overdue outcomes need attention.">
+            {dueActions.map((action) => (
+              <ActionRow key={`action-${action.actionId}`} action={action} onComplete={completeAction} busy={busyActionId === action.actionId} />
+            ))}
+            {workspace.outcomes.map((meeting) => (
+              <MeetingRow key={`outcome-${meeting.id}`} meeting={meeting} eyebrow="Outcome missing" detail={formatShortDate(meeting.selectedSlot)} action="Capture outcome" />
+            ))}
+            {workspace.followUp.map((meeting) => (
+              <MeetingRow key={`followup-${meeting.id}`} meeting={meeting} eyebrow="Booking follow-up" detail={meeting.nextFollowUpAt ? formatShortDate(meeting.nextFollowUpAt) : 'Needs a nudge'} action="Follow up" />
+            ))}
+          </Section>
 
-            <Section title="Needs action" count={attentionCount} empty="You are caught up. No commitments, follow-ups or overdue outcomes need attention.">
-              {dueActions.map((action) => (
-                <ActionRow key={`action-${action.actionId}`} action={action} onComplete={completeAction} busy={busyActionId === action.actionId} />
-              ))}
-              {workspace.outcomes.map((meeting) => (
-                <MeetingRow key={`outcome-${meeting.id}`} meeting={meeting} eyebrow="Outcome missing" detail={formatShortDate(meeting.selectedSlot)} action="Capture outcome" />
-              ))}
-              {workspace.followUp.map((meeting) => (
-                <MeetingRow key={`followup-${meeting.id}`} meeting={meeting} eyebrow="Booking follow-up" detail={meeting.nextFollowUpAt ? formatShortDate(meeting.nextFollowUpAt) : 'Needs a nudge'} action="Follow up" />
-              ))}
-            </Section>
-          </div>
+          <Section title="Next up" count={workspace.upcoming.length} empty="Nothing booked in the next 24 hours.">
+            {workspace.upcoming.map((meeting) => (
+              <MeetingRow key={meeting.id} meeting={meeting} eyebrow="Upcoming meeting" detail={formatShortDate(meeting.selectedSlot)} action="Prepare" />
+            ))}
+          </Section>
 
-          <aside className="today-secondary">
-            <Section title="Waiting" count={workspace.waiting.length} empty="No open booking requests are waiting on guests.">
-              {workspace.waiting.slice(0, 6).map((meeting) => (
-                <MeetingRow key={meeting.id} meeting={meeting} eyebrow="Link sent" detail={formatShortDate(meeting.createdAt)} />
-              ))}
-            </Section>
-            {workspace.waiting.length > 6 && <button className="today-pipeline-link" type="button" onClick={onPipeline}>View all in Pipeline →</button>}
-          </aside>
+          <Section title="Waiting for replies" count={workspace.waiting.length} empty="No open booking requests are waiting on guests.">
+            {workspace.waiting.slice(0, 6).map((meeting) => (
+              <MeetingRow key={meeting.id} meeting={meeting} eyebrow="Link sent" detail={formatShortDate(meeting.createdAt)} />
+            ))}
+          </Section>
+          {workspace.waiting.length > 6 && <button className="today-pipeline-link" type="button" onClick={onPipeline}>View all waiting requests in Pipeline →</button>}
         </div>
       )}
     </section>
