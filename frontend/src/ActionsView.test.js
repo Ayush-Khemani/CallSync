@@ -52,7 +52,6 @@ test('shows meeting commitments with a direct link to their meeting record', asy
   await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
   expect(screen.getByText('Maya Chen')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /Send the updated investor deck/i })).toHaveAttribute('href', '/meeting/7');
-  expect(screen.getByText('From meeting outcome')).toBeInTheDocument();
 });
 
 test('completes and reopens actions from the action ledger', async () => {
@@ -87,7 +86,7 @@ test('creates a manual action attached to a meeting', async () => {
   render(<ActionsView />);
   await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
 
-  fireEvent.click(screen.getByRole('button', { name: '+ Add action' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add task' }));
   fireEvent.change(screen.getByLabelText('Meeting'), { target: { value: '7' } });
   fireEvent.change(screen.getByLabelText('Action'), { target: { value: 'Ask for the partner meeting date' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));

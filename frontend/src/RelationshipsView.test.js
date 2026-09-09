@@ -33,15 +33,15 @@ test('renders one relationship for repeated meetings and links to the latest rec
   expect(screen.getByText('Maya wants updated retention before the partner meeting.')).toBeInTheDocument();
   expect(screen.getByText('Send updated revenue metrics')).toBeInTheDocument();
   expect(screen.getByText(/Investor follow-up/i)).toBeInTheDocument();
-  const latestMeetingLinks = screen.getAllByRole('link', { name: /Open latest meeting/i });
-  expect(latestMeetingLinks.find((link) => link.getAttribute('href') === '/meeting/2')).toBeTruthy();
+  const maya = screen.getByRole('link', { name: /Maya Chen/i });
+  expect(maya).toHaveAttribute('href', '/meeting/2');
 });
 
 test('searches relationships by name or context', async () => {
   render(<RelationshipsView />);
   await waitFor(() => expect(screen.getByText('Maya Chen')).toBeInTheDocument());
 
-  fireEvent.change(screen.getByPlaceholderText(/Search person/i), { target: { value: 'Jamie' } });
+  fireEvent.change(screen.getByPlaceholderText(/Search people/i), { target: { value: 'Jamie' } });
   expect(screen.getByText('Jamie Smith')).toBeInTheDocument();
   expect(screen.queryByText('Maya Chen')).not.toBeInTheDocument();
 });

@@ -4,12 +4,6 @@ import { API_URL, authHeaders, formatShortDate } from './workspaceShared';
 import { buildRelationships } from './relationshipWorkflow';
 import './RelationshipsView.css';
 
-function stateLabel(value) {
-  if (value === 'active') return 'Active';
-  if (value === 'recent') return 'Recent';
-  return 'History';
-}
-
 export default function RelationshipsView() {
   const [relationships, setRelationships] = useState([]);
   const [query, setQuery] = useState('');
@@ -54,48 +48,37 @@ export default function RelationshipsView() {
     ].some((value) => String(value || '').toLowerCase().includes(normalized)));
   }, [query, relationships]);
 
-  const activeCount = relationships.filter((item) => item.relationshipState === 'active').length;
-
   return (
     <section className="pw-page relationships-page">
       <header className="pw-page-head compact relationships-head">
-        <div>
-          <p className="pw-kicker">Relationships</p>
-          <h1>The history behind the next conversation.</h1>
-          <p>One place to remember who someone is, what happened last, and what comes next.</p>
-        </div>
+        <div><h1>People</h1></div>
       </header>
 
-      <div className="relationships-meta"><strong>{relationships.length}</strong> people <span>·</span> <strong>{activeCount}</strong> active</div>
-
       <div className="relationships-toolbar">
-        <label className="pw-search relationships-search"><span aria-hidden="true">⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search person, email, meeting type or context" /></label>
-        <button className="pw-secondary-button" type="button" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+        <label className="pw-search relationships-search"><span aria-hidden="true">⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search people" /></label>
       </div>
 
       {message && <div className="pw-message error">{message}</div>}
       {loading && !relationships.length ? <div className="pw-loading-card">Building relationship history…</div> : (
         <div className="relationships-list">
           {visible.map((relationship) => (
-            <article className="relationship-row" key={relationship.email}>
+            <a className="relationship-row relationship-row-link" href={`/meeting/${relationship.latestMeetingId}`} key={relationship.email}>
               <div className="relationship-person">
                 <div className="relationship-avatar">{(relationship.attendeeName || relationship.email).trim().slice(0, 1).toUpperCase()}</div>
-                <div><div className="relationship-name-line"><h3>{relationship.attendeeName}</h3><span className={`relationship-state state-${relationship.relationshipState}`}>{stateLabel(relationship.relationshipState)}</span></div><p>{relationship.email} · {relationship.meetingCount} meeting{relationship.meetingCount === 1 ? '' : 's'}</p></div>
+                <div><h3>{relationship.attendeeName}</h3><p>{relationship.email} · {relationship.meetingCount} meeting{relationship.meetingCount === 1 ? '' : 's'}</p></div>
               </div>
 
               <div className="relationship-context">
-                <span>Latest context</span>
-                <strong>{relationship.latestContext || 'No outcome or saved memory yet.'}</strong>
-                <small>{relationship.latestMeetingType} · {relationship.lastContactAt ? formatShortDate(relationship.lastContactAt) : 'No dated meeting'}</small>
+                <span>Last conversation</span>
+                <strong>{relationship.latestContext || relationship.latestMeetingType || 'Meeting'}</strong>
+                <small>{relationship.latestMeetingType || 'Meeting'} · {relationship.lastContactAt ? formatShortDate(relationship.lastContactAt) : 'No date'}</small>
               </div>
 
               <div className="relationship-next">
-                <span>Next commitment</span>
+                <span>Next</span>
                 {relationship.nextAction ? <><strong>{relationship.nextAction.title}</strong><small>{relationship.nextAction.dueAt ? `Due ${formatShortDate(relationship.nextAction.dueAt)}` : 'No due date'}</small></> : <strong className="muted">Nothing open</strong>}
               </div>
-
-              <a className="relationship-open" href={`/meeting/${relationship.latestMeetingId}`}>Open latest meeting →</a>
-            </article>
+            </a>
           ))}
           {!visible.length && <div className="relationships-empty">{relationships.length ? 'No relationships match this search.' : 'Relationship history will appear after you create meetings with people.'}</div>}
         </div>
