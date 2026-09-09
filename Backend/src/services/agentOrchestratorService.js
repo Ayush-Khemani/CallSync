@@ -111,7 +111,7 @@ async function callProvider({ messages, userId, userTimeZone }) {
       });
     }
 
-    input = [...input, ...(response.data.output || []), ...outputs];
+    input = [...input, ...calls, ...outputs];
   }
 
   return {
