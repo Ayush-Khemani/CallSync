@@ -63,7 +63,7 @@ test('completes and reopens actions from the action ledger', async () => {
   await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
 
   fireEvent.click(screen.getByRole('button', { name: /Complete Send the updated investor deck/i }));
-  fireEvent.click(screen.getByRole('button', { name: 'Completed' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Completed/i }));
   await waitFor(() => expect(screen.getByRole('button', { name: /Reopen Send the updated investor deck/i })).toBeInTheDocument());
 
   fireEvent.click(screen.getByRole('button', { name: /Reopen Send the updated investor deck/i }));
