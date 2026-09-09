@@ -88,6 +88,13 @@ async function saveMessage({ userId, threadId, role, content, payload = {} }) {
 }
 
 async function createPendingAction({ userId, threadId, actionType, payload }) {
+  await pool.query(
+    `UPDATE agent_pending_actions
+     SET status = 'cancelled'
+     WHERE user_id = $1 AND thread_id = $2 AND status = 'pending'`,
+    [userId, threadId]
+  );
+
   const id = crypto.randomUUID();
   const result = await pool.query(
     `INSERT INTO agent_pending_actions (id, thread_id, user_id, action_type, payload)
