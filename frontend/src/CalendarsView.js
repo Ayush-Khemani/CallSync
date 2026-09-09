@@ -6,23 +6,21 @@ export default function CalendarsView() {
   return (
     <section className="pw-page pw-calendars-page">
       <header className="pw-page-head compact">
-        <div><p className="pw-kicker">Calendar connections</p><h1>Your availability sources.</h1><p>CallSync uses calendar busy/free data to protect availability and narrow send permissions to deliver meeting communication.</p></div>
+        <div><h1>Calendars</h1></div>
       </header>
 
       <div className="integrations pw-calendar-grid">
         <article className="google pw-calendar-card">
           <div className="pw-calendar-icon">G</div>
-          <span>Google Calendar + Gmail</span>
-          <h2>Google workspace</h2>
-          <p>Use Google Calendar for availability and Gmail to send approved meeting communication from your own account.</p>
-          <button className="pw-primary-button" type="button" onClick={() => beginOAuth('google')}>Connect / reconnect Google</button>
+          <h2>Google</h2>
+          <p>Calendar availability and Gmail sending.</p>
+          <button className="pw-primary-button" type="button" onClick={() => beginOAuth('google')}>Connect Google</button>
         </article>
         <article className="outlook pw-calendar-card">
           <div className="pw-calendar-icon">O</div>
-          <span>Outlook Calendar + Mail</span>
-          <h2>Microsoft workspace</h2>
-          <p>Use Outlook Calendar for availability and delegated Mail.Send for approved communication from your Microsoft account.</p>
-          <button className="pw-primary-button" type="button" onClick={() => beginOAuth('outlook')}>Connect / reconnect Outlook</button>
+          <h2>Microsoft</h2>
+          <p>Outlook availability and email sending.</p>
+          <button className="pw-primary-button" type="button" onClick={() => beginOAuth('outlook')}>Connect Microsoft</button>
         </article>
       </div>
       <CalendarConnectionStatus />
