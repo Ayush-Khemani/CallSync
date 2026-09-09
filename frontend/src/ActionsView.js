@@ -25,6 +25,7 @@ export default function ActionsView() {
   const [busyId, setBusyId] = useState(null);
   const [message, setMessage] = useState('');
   const [draft, setDraft] = useState({ meetingId: '', title: '', dueAt: '' });
+  const [showCreate, setShowCreate] = useState(false);
   const now = Date.now();
 
   async function load() {
@@ -97,6 +98,7 @@ export default function ActionsView() {
       setActions((current) => [...current, created]);
       setDraft({ meetingId: '', title: '', dueAt: '' });
       setFilter('open');
+      setShowCreate(false);
       setMessage('Action added to the meeting.');
     } catch (error) {
       setMessage(error.response?.data?.error || 'Could not create the action.');
@@ -111,44 +113,39 @@ export default function ActionsView() {
         <div>
           <p className="pw-kicker">Meeting actions</p>
           <h1>Commitments should not disappear into notes.</h1>
-          <p>Track what a conversation produced, when it is due, and which meeting it came from.</p>
+          <p>A simple task list for the promises that came out of your meetings.</p>
         </div>
+        <button className="pw-primary-button" type="button" onClick={() => setShowCreate((current) => !current)}>{showCreate ? 'Close' : '+ Add action'}</button>
       </header>
 
-      <div className="actions-summary">
-        <article><span>Open</span><strong>{open.length}</strong><small>Active commitments</small></article>
-        <article><span>Overdue</span><strong>{overdue.length}</strong><small>Need attention now</small></article>
-        <article><span>Completed</span><strong>{completed.length}</strong><small>Closed commitments</small></article>
-      </div>
-
-      <form className="actions-create" onSubmit={createAction}>
-        <div>
-          <span className="mr-label">Add a commitment</span>
-          <h2>Attach it to the conversation that created it.</h2>
-        </div>
-        <label>
-          <span>Meeting</span>
-          <select value={draft.meetingId} onChange={(event) => setDraft((current) => ({ ...current, meetingId: event.target.value }))}>
-            <option value="">Choose meeting</option>
-            {meetings.map((meeting) => <option value={meeting.id} key={meeting.id}>{meeting.attendeeName || meeting.attendeeEmail} · {meeting.meetingType || 'Meeting'}</option>)}
-          </select>
-        </label>
-        <label className="actions-title-field">
-          <span>Action</span>
-          <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Send updated deck, share proposal, make introduction…" />
-        </label>
-        <label>
-          <span>Due</span>
-          <input type="datetime-local" value={draft.dueAt} onChange={(event) => setDraft((current) => ({ ...current, dueAt: event.target.value }))} />
-        </label>
-        <button className="pw-primary-button" type="submit" disabled={busyId === 'create'}>{busyId === 'create' ? 'Adding…' : 'Add action'}</button>
-      </form>
+      {showCreate && (
+        <form className="actions-create actions-create-compact" onSubmit={createAction}>
+          <label>
+            <span>Meeting</span>
+            <select value={draft.meetingId} onChange={(event) => setDraft((current) => ({ ...current, meetingId: event.target.value }))}>
+              <option value="">Choose meeting</option>
+              {meetings.map((meeting) => <option value={meeting.id} key={meeting.id}>{meeting.attendeeName || meeting.attendeeEmail} · {meeting.meetingType || 'Meeting'}</option>)}
+            </select>
+          </label>
+          <label className="actions-title-field">
+            <span>Action</span>
+            <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Send updated deck, share proposal, make introduction…" />
+          </label>
+          <label>
+            <span>Due</span>
+            <input type="datetime-local" value={draft.dueAt} onChange={(event) => setDraft((current) => ({ ...current, dueAt: event.target.value }))} />
+          </label>
+          <button className="pw-primary-button" type="submit" disabled={busyId === 'create'}>{busyId === 'create' ? 'Adding…' : 'Add'}</button>
+        </form>
+      )}
 
       {message && <div className="pw-message">{message}</div>}
 
       <div className="actions-toolbar">
-        <div className="actions-filters">
-          {['open', 'completed', 'all'].map((id) => <button type="button" key={id} className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{id === 'all' ? 'All' : id[0].toUpperCase() + id.slice(1)}</button>)}
+        <div className="actions-filters" aria-label="Action filters">
+          <button type="button" className={filter === 'open' ? 'active' : ''} onClick={() => setFilter('open')}>Open <span>{open.length}</span>{overdue.length ? <em>{overdue.length} overdue</em> : null}</button>
+          <button type="button" className={filter === 'completed' ? 'active' : ''} onClick={() => setFilter('completed')}>Completed <span>{completed.length}</span></button>
+          <button type="button" className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All <span>{actions.length}</span></button>
         </div>
         <button className="pw-secondary-button" type="button" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
       </div>
