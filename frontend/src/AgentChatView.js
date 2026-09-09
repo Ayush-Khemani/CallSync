@@ -1,62 +1,68 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { API_URL, authHeaders, formatShortDate } from './workspaceShared';
 import './AgentChatView.css';
 
 const QUICK_PROMPTS = [
   'Schedule a 30 minute meeting next week',
-  'Show my open tasks',
-  'Show my meetings',
+  'Prepare me for my next meeting',
+  'What do I still owe people?',
+  'Show my active meetings',
 ];
 
 function nextId(prefix = 'message') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function isSchedulingRequest(text) {
-  return /\b(schedule|book|arrange|set up|find (?:a )?time|send (?:an )?invite|create (?:a )?meeting)\b/i.test(text);
+function normalizeMessage(message) {
+  return {
+    id: message.id || nextId(),
+    role: message.role || 'assistant',
+    text: message.content ?? message.text ?? '',
+    payload: message.payload || {},
+    createdAt: message.createdAt,
+  };
 }
 
-function isTaskRequest(text) {
-  return /\b(tasks?|to-?dos?|commitments?|actions?)\b/i.test(text);
-}
+function ScheduleProposal({ actionId, proposal, onConfirm, busy, completed }) {
+  const [selectedSlots, setSelectedSlots] = useState(proposal.selectedSlots || []);
 
-function isMeetingRequest(text) {
-  return /\b(meetings?|calls?|upcoming|calendar)\b/i.test(text);
-}
+  function toggle(slot) {
+    if (completed || busy) return;
+    setSelectedSlots((current) => (
+      current.includes(slot)
+        ? current.filter((item) => item !== slot)
+        : [...current, slot]
+    ));
+  }
 
-function missingScheduleFields(draft) {
-  const form = draft?.formPatch || {};
-  const missing = [];
-  if (!form.attendeeName) missing.push('guest name');
-  if (!form.attendeeEmail) missing.push('guest email');
-  if (!form.selectedDate) missing.push('date');
-  return missing;
-}
-
-function ScheduleProposal({ proposal, onToggleSlot, onConfirm, busy }) {
-  const form = proposal.draft.formPatch;
   return (
     <div className="agent-result-card agent-schedule-card">
       <div className="agent-result-title">
         <div>
-          <span>Ready to schedule</span>
-          <strong>{form.attendeeName}</strong>
-          <small>{form.attendeeEmail}</small>
+          <span>{completed ? 'Request handled' : 'Ready to schedule'}</span>
+          <strong>{proposal.attendeeName}</strong>
+          <small>{proposal.attendeeEmail}</small>
         </div>
-        <b>{form.durationMinutes} min</b>
+        <b>{proposal.durationMinutes} min</b>
       </div>
 
       <div className="agent-result-meta">
-        <span>{form.selectedDate}</span>
+        <span>{proposal.date}</span>
         <span>{proposal.timeZone}</span>
       </div>
 
       <div className="agent-slot-list">
-        {proposal.slots.map((slot) => {
-          const selected = proposal.selectedSlots.includes(slot);
+        {(proposal.slots || []).map((slot) => {
+          const selected = selectedSlots.includes(slot);
           return (
-            <button type="button" className={selected ? 'selected' : ''} key={slot} onClick={() => onToggleSlot(slot)}>
+            <button
+              type="button"
+              className={selected ? 'selected' : ''}
+              key={slot}
+              onClick={() => toggle(slot)}
+              disabled={completed}
+            >
               <span>{new Date(slot).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>
               <strong>{new Date(slot).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
             </button>
@@ -66,11 +72,15 @@ function ScheduleProposal({ proposal, onToggleSlot, onConfirm, busy }) {
 
       <div className="agent-confirm-row">
         <div>
-          <strong>{proposal.selectedSlots.length} time{proposal.selectedSlots.length === 1 ? '' : 's'} selected</strong>
-          <span>CallSync will place calendar holds and send the request.</span>
+          <strong>{selectedSlots.length} time{selectedSlots.length === 1 ? '' : 's'} selected</strong>
+          <span>{completed ? 'This action has already been confirmed.' : 'CallSync will place calendar holds and send the request.'}</span>
         </div>
-        <button type="button" onClick={onConfirm} disabled={!proposal.selectedSlots.length || busy}>
-          {busy ? 'Sending…' : 'Send meeting request'}
+        <button
+          type="button"
+          onClick={() => onConfirm(actionId, selectedSlots)}
+          disabled={completed || !selectedSlots.length || busy}
+        >
+          {completed ? 'Sent' : busy ? 'Sending…' : 'Send meeting request'}
         </button>
       </div>
     </div>
@@ -78,10 +88,10 @@ function ScheduleProposal({ proposal, onToggleSlot, onConfirm, busy }) {
 }
 
 function MeetingList({ items }) {
-  if (!items.length) return <div className="agent-empty-result">You do not have any active meetings yet.</div>;
+  if (!items.length) return <div className="agent-empty-result">No matching meetings.</div>;
   return (
     <div className="agent-result-list">
-      {items.map((meeting) => (
+      {items.slice(0, 10).map((meeting) => (
         <a href={`/meeting/${meeting.id}`} key={meeting.id}>
           <div>
             <strong>{meeting.attendeeName || meeting.attendeeEmail || 'Meeting'}</strong>
@@ -95,10 +105,10 @@ function MeetingList({ items }) {
 }
 
 function TaskList({ items }) {
-  if (!items.length) return <div className="agent-empty-result">You have no open tasks.</div>;
+  if (!items.length) return <div className="agent-empty-result">No open tasks.</div>;
   return (
     <div className="agent-result-list">
-      {items.map((task) => (
+      {items.slice(0, 10).map((task) => (
         <a href={`/meeting/${task.meetingId}`} key={task.actionId}>
           <div>
             <strong>{task.title}</strong>
@@ -111,210 +121,118 @@ function TaskList({ items }) {
   );
 }
 
+function PersonResult({ payload }) {
+  if (!payload.found) return <div className="agent-empty-result">No matching person in your meeting history.</div>;
+  return (
+    <div className="agent-person-result">
+      <div className="agent-person-head">
+        <div><strong>{payload.person?.name || payload.person?.email}</strong><span>{payload.person?.email}</span></div>
+        <b>{payload.meetings?.length || 0} meetings</b>
+      </div>
+      <MeetingList items={payload.meetings || []} />
+      {!!payload.openTasks?.length && <TaskList items={payload.openTasks.map((task) => ({ ...task, attendeeName: payload.person?.name }))} />}
+    </div>
+  );
+}
+
+function PreCallResult({ payload }) {
+  const brief = payload.brief || {};
+  const meeting = payload.meeting || {};
+  return (
+    <div className="agent-result-card agent-precall-card">
+      <div className="agent-result-title">
+        <div><span>Meeting prep</span><strong>{meeting.attendeeName || meeting.attendeeEmail || 'Meeting'}</strong></div>
+        <b>{meeting.durationMinutes || 60} min</b>
+      </div>
+      {brief.goal && <p className="agent-precall-goal">{brief.goal}</p>}
+      {!!brief.agenda?.length && (
+        <ol className="agent-precall-agenda">
+          {brief.agenda.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+        </ol>
+      )}
+      {brief.openingPrompt && <div className="agent-opening"><span>Open with</span><strong>{brief.openingPrompt}</strong></div>}
+    </div>
+  );
+}
+
+function CreatedResult({ payload }) {
+  const bookingUrl = payload.uniqueLink ? `${window.location.origin}/select-slot/${payload.uniqueLink}` : '';
+  return (
+    <div className="agent-created-result">
+      <div><span>{payload.sent ? 'Request sent' : 'Meeting created'}</span><strong>{payload.meetingName || 'Meeting'}</strong></div>
+      {bookingUrl && <a href={bookingUrl} target="_blank" rel="noreferrer">Open booking page</a>}
+    </div>
+  );
+}
+
 export default function AgentChatView() {
   const [messages, setMessages] = useState([]);
+  const [threadId, setThreadId] = useState('');
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState('');
-  const [scheduleContext, setScheduleContext] = useState('');
-  const [proposal, setProposal] = useState(null);
+  const [confirmedActions, setConfirmedActions] = useState(new Set());
 
   const timeZone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     []
   );
 
-  function addMessage(message) {
-    setMessages((current) => [...current, { id: nextId(), ...message }]);
-  }
-
-  async function prepareSchedule(text) {
-    const combinedPrompt = scheduleContext
-      ? `${scheduleContext}\nUpdate from user: ${text}`
-      : text;
-
-    setBusy('schedule');
-    try {
-      const response = await axios.post(`${API_URL}/api/intelligence/generate`, {
-        kind: 'meeting_brief',
-        context: { prompt: combinedPrompt },
-      }, { headers: authHeaders() });
-
-      const draft = response.data.output || {};
-      const missing = missingScheduleFields(draft);
-      setScheduleContext(combinedPrompt);
-
-      if (missing.length) {
-        setProposal(null);
-        addMessage({
-          role: 'assistant',
-          text: `I can set that up. I still need the ${missing.join(' and ')}. Send that here and I’ll continue.`,
-        });
-        return;
-      }
-
-      const form = draft.formPatch;
-      const availability = await axios.get(`${API_URL}/api/calendar/available-slots`, {
-        params: {
-          date: form.selectedDate,
-          workStartHour: form.workStartHour,
-          workEndHour: form.workEndHour,
-          durationMinutes: form.durationMinutes,
-          slotIntervalMinutes: form.slotIntervalMinutes,
-          bufferMinutes: form.bufferMinutes,
-          timeZone,
-        },
-        headers: authHeaders(),
-      });
-
-      const slots = (availability.data.availableSlots || []).slice(0, 4);
-      if (!slots.length) {
-        setProposal(null);
-        addMessage({
-          role: 'assistant',
-          text: `I understood the meeting, but I couldn’t find an available ${form.durationMinutes}-minute window on ${form.selectedDate}. Tell me another day or time window and I’ll check again.`,
-        });
-        return;
-      }
-
-      const nextProposal = {
-        draft,
-        slots,
-        selectedSlots: slots.slice(0, Math.min(3, slots.length)),
-        timeZone: availability.data.timeZone || timeZone,
-      };
-      setProposal(nextProposal);
-      addMessage({
-        role: 'assistant',
-        text: `I checked your connected calendars and found ${slots.length} available option${slots.length === 1 ? '' : 's'}. I selected the best few below. Nothing will be sent until you confirm.`,
-        type: 'schedule-proposal',
-      });
-    } catch (error) {
-      addMessage({
-        role: 'assistant',
-        text: error.response?.data?.error || 'I could not prepare that meeting. Check your calendar connection and try again.',
-      });
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function showTasks() {
-    setBusy('read');
-    try {
-      const response = await axios.get(`${API_URL}/api/actions?status=open`, { headers: authHeaders() });
-      addMessage({
-        role: 'assistant',
-        text: response.data.actions?.length ? 'These are your open meeting tasks.' : 'You are caught up.',
-        type: 'tasks',
-        items: (response.data.actions || []).slice(0, 8),
-      });
-    } catch (error) {
-      addMessage({ role: 'assistant', text: error.response?.data?.error || 'I could not load your tasks.' });
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function showMeetings() {
-    setBusy('read');
-    try {
-      const response = await axios.get(`${API_URL}/api/meetings`, { headers: authHeaders() });
-      const items = (response.data.meetings || [])
-        .filter((meeting) => meeting.status !== 'cancelled')
-        .sort((a, b) => {
-          if (a.status === 'confirmed' && b.status !== 'confirmed') return -1;
-          if (a.status !== 'confirmed' && b.status === 'confirmed') return 1;
-          return new Date(a.selectedSlot || a.createdAt).getTime() - new Date(b.selectedSlot || b.createdAt).getTime();
-        })
-        .slice(0, 8);
-      addMessage({
-        role: 'assistant',
-        text: items.length ? 'Here are your active meetings.' : 'You do not have any active meetings yet.',
-        type: 'meetings',
-        items,
-      });
-    } catch (error) {
-      addMessage({ role: 'assistant', text: error.response?.data?.error || 'I could not load your meetings.' });
-    } finally {
-      setBusy('');
-    }
-  }
+  useEffect(() => {
+    let cancelled = false;
+    axios.get(`${API_URL}/api/agent/threads/latest`, { headers: authHeaders() })
+      .then((response) => {
+        if (cancelled) return;
+        setThreadId(response.data.thread?.id || '');
+        setMessages((response.data.messages || []).map(normalizeMessage));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleUserText(rawText) {
     const text = rawText.trim();
     if (!text || busy) return;
 
-    addMessage({ role: 'user', text });
+    const optimistic = normalizeMessage({ role: 'user', text, id: nextId('user') });
+    setMessages((current) => [...current, optimistic]);
     setInput('');
+    setBusy('chat');
 
-    if (proposal || scheduleContext || isSchedulingRequest(text)) {
-      await prepareSchedule(text);
-      return;
-    }
-    if (isTaskRequest(text)) {
-      await showTasks();
-      return;
-    }
-    if (isMeetingRequest(text)) {
-      await showMeetings();
-      return;
-    }
-
-    addMessage({
-      role: 'assistant',
-      text: 'I can already schedule meetings, check your active meetings, and show your open tasks. Try telling me what you want done in plain language.',
-    });
-  }
-
-  function toggleSlot(slot) {
-    setProposal((current) => {
-      if (!current) return current;
-      const selectedSlots = current.selectedSlots.includes(slot)
-        ? current.selectedSlots.filter((item) => item !== slot)
-        : [...current.selectedSlots, slot];
-      return { ...current, selectedSlots };
-    });
-  }
-
-  async function confirmSchedule() {
-    if (!proposal?.selectedSlots.length || busy) return;
-    setBusy('confirm');
     try {
-      const form = proposal.draft.formPatch;
-      const brief = proposal.draft.brief || {};
-      const response = await axios.post(`${API_URL}/api/meetings/create`, {
-        attendeeEmail: form.attendeeEmail,
-        attendeeName: form.attendeeName,
-        slots: proposal.selectedSlots,
-        durationMinutes: form.durationMinutes,
-        brief: {
-          type: brief.type || 'Meeting',
-          goal: brief.goal || '',
-          message: brief.message || '',
-          questions: brief.questions || [],
-          internalNotes: '',
-        },
+      const response = await axios.post(`${API_URL}/api/agent/chat`, {
+        threadId: threadId || null,
+        message: text,
+        timeZone,
       }, { headers: authHeaders() });
 
-      const bookingUrl = `${window.location.origin}/select-slot/${response.data.uniqueLink}`;
-      const sent = Boolean(response.data.delivery?.requestEmail?.sent);
-      addMessage({
-        role: 'assistant',
-        text: sent
-          ? `Done. I created the meeting with ${form.attendeeName}, protected the offered times on your connected calendars, and sent the request.`
-          : `The meeting is created and the calendar holds are protected, but email delivery was not confirmed. You can send the booking link manually.`,
-        type: 'created',
-        bookingUrl,
-        meetingName: form.attendeeName,
-        sent,
-      });
-      setProposal(null);
-      setScheduleContext('');
+      setThreadId(response.data.thread?.id || threadId);
+      setMessages((current) => [...current, normalizeMessage(response.data.message)]);
     } catch (error) {
-      addMessage({
+      setMessages((current) => [...current, normalizeMessage({
         role: 'assistant',
-        text: error.response?.data?.error || 'I could not create the meeting request, so nothing was sent.',
-      });
+        text: error.response?.data?.error || 'CallSync could not complete that request.',
+      })]);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function confirmAction(actionId, selectedSlots) {
+    if (!actionId || busy) return;
+    setBusy(actionId);
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/agent/actions/${actionId}/confirm`,
+        { selectedSlots },
+        { headers: authHeaders() }
+      );
+      setConfirmedActions((current) => new Set([...current, actionId]));
+      setMessages((current) => [...current, normalizeMessage(response.data.message)]);
+    } catch (error) {
+      setMessages((current) => [...current, normalizeMessage({
+        role: 'assistant',
+        text: error.response?.data?.error || 'I could not complete that action, so I did not claim it succeeded.',
+      })]);
     } finally {
       setBusy('');
     }
@@ -323,6 +241,27 @@ export default function AgentChatView() {
   function submit(event) {
     event.preventDefault();
     handleUserText(input);
+  }
+
+  function renderPayload(message) {
+    const payload = message.payload || {};
+    if (payload.type === 'schedule_confirmation' && payload.proposal) {
+      return (
+        <ScheduleProposal
+          actionId={payload.actionId}
+          proposal={payload.proposal}
+          onConfirm={confirmAction}
+          busy={busy === payload.actionId}
+          completed={confirmedActions.has(payload.actionId)}
+        />
+      );
+    }
+    if (payload.type === 'meetings') return <MeetingList items={payload.items || []} />;
+    if (payload.type === 'tasks') return <TaskList items={payload.items || []} />;
+    if (payload.type === 'person') return <PersonResult payload={payload} />;
+    if (payload.type === 'pre_call') return <PreCallResult payload={payload} />;
+    if (payload.type === 'created') return <CreatedResult payload={payload} />;
+    return null;
   }
 
   return (
@@ -339,7 +278,7 @@ export default function AgentChatView() {
           <div className="agent-empty-home">
             <div className="agent-mark">CS</div>
             <h1>What do you want CallSync to do?</h1>
-            <p>Describe the outcome. CallSync will handle the workflow and ask before it sends or changes anything important.</p>
+            <p>Describe the outcome. The agent can inspect your workspace, prepare work, and ask before it changes anything external.</p>
             <div className="agent-suggestions">
               {QUICK_PROMPTS.map((prompt) => (
                 <button type="button" key={prompt} onClick={() => handleUserText(prompt)}>{prompt}</button>
@@ -351,20 +290,10 @@ export default function AgentChatView() {
             {messages.map((message) => (
               <article className={`agent-message ${message.role}`} key={message.id}>
                 <div className="agent-message-body">{message.text}</div>
-                {message.type === 'schedule-proposal' && proposal && (
-                  <ScheduleProposal proposal={proposal} onToggleSlot={toggleSlot} onConfirm={confirmSchedule} busy={busy === 'confirm'} />
-                )}
-                {message.type === 'meetings' && <MeetingList items={message.items || []} />}
-                {message.type === 'tasks' && <TaskList items={message.items || []} />}
-                {message.type === 'created' && (
-                  <div className="agent-created-result">
-                    <div><span>{message.sent ? 'Request sent' : 'Meeting created'}</span><strong>{message.meetingName}</strong></div>
-                    <a href={message.bookingUrl} target="_blank" rel="noreferrer">Open booking page</a>
-                  </div>
-                )}
+                {renderPayload(message)}
               </article>
             ))}
-            {!!busy && busy !== 'confirm' && <div className="agent-thinking"><span /><span /><span /></div>}
+            {!!busy && busy === 'chat' && <div className="agent-thinking"><span /><span /><span /></div>}
           </div>
         )}
       </div>
@@ -381,12 +310,12 @@ export default function AgentChatView() {
                 if (input.trim()) handleUserText(input);
               }
             }}
-            placeholder={proposal ? 'Change anything, or confirm the request above…' : 'Tell CallSync what you want done…'}
+            placeholder="Tell CallSync what you want done…"
             rows="1"
           />
           <button type="submit" disabled={!input.trim() || Boolean(busy)} aria-label="Send message">↑</button>
         </form>
-        <span className="agent-composer-note">CallSync asks before sending messages or changing external systems.</span>
+        <span className="agent-composer-note">CallSync can read and prepare freely. External changes still require confirmation.</span>
       </div>
     </section>
   );
