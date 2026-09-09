@@ -124,11 +124,13 @@ test('meeting record centralizes preparation, outcome, actions, memory and activ
   expect(screen.getByRole('button', { name: 'Prepare' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Follow-up' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Outcome' })).toBeInTheDocument();
+  expect(screen.getByText('Northstar Ventures')).toBeInTheDocument();
+  expect(screen.getByDisplayValue('Review the current deck.')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText('More'));
   expect(screen.getByRole('button', { name: 'Actions' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Memory' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Activity' })).toBeInTheDocument();
-  expect(screen.getByText('Northstar Ventures')).toBeInTheDocument();
-  expect(screen.getByDisplayValue('Review the current deck.')).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
   await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
