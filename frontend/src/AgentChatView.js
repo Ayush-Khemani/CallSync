@@ -182,8 +182,14 @@ export default function AgentChatView() {
     axios.get(`${API_URL}/api/agent/threads/latest`, { headers: authHeaders() })
       .then((response) => {
         if (cancelled) return;
+        const restored = (response.data.messages || []).map(normalizeMessage);
         setThreadId(response.data.thread?.id || '');
-        setMessages((response.data.messages || []).map(normalizeMessage));
+        setMessages(restored);
+        setConfirmedActions(new Set(
+          restored
+            .filter((message) => message.payload?.type === 'created' && message.payload?.actionId)
+            .map((message) => message.payload.actionId)
+        ));
       })
       .catch(() => {});
     return () => { cancelled = true; };
