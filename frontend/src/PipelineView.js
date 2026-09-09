@@ -50,32 +50,21 @@ export default function PipelineView({ onCreate }) {
   }, [meetings, query]);
 
   const pipeline = useMemo(() => getMeetingPipelineStages(visibleMeetings), [visibleMeetings]);
-  const booked = meetings.filter((meeting) => meeting.status === 'confirmed').length;
   const followUpDue = meetings.filter(needsFollowUp).length;
 
   return (
     <section className="pw-page pw-pipeline-page">
       <header className="pw-page-head">
-        <div>
-          <p className="pw-kicker">Meeting pipeline</p>
-          <h1>Every conversation, one clear next state.</h1>
-          <p>Scan the lifecycle, find what is stuck, and open the meeting only when you need the details.</p>
-        </div>
-        <button className="pw-primary-button" type="button" onClick={onCreate}>+ New meeting</button>
+        <div><h1>Meetings</h1></div>
+        <button className="pw-primary-button" type="button" onClick={onCreate}>New meeting</button>
       </header>
 
-      <div className="pipeline-overview" aria-label="Pipeline summary">
-        <span><strong>{followUpDue}</strong> need attention</span>
-        <span><strong>{booked}</strong> booked</span>
-        <span><strong>{meetings.length}</strong> total</span>
-      </div>
-
-      <div className="pw-board-toolbar">
+      <div className="pw-board-toolbar meetings-toolbar">
         <label className="pw-search">
           <span aria-hidden="true">⌕</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search attendee, email or meeting type" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search meetings" />
         </label>
-        <button className="pw-secondary-button" type="button" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+        {!!followUpDue && <span className="meetings-attention">{followUpDue} need attention</span>}
       </div>
 
       {message && <div className="pw-message error">{message}</div>}
@@ -83,10 +72,9 @@ export default function PipelineView({ onCreate }) {
 
       {!loading && !meetings.length ? (
         <div className="pw-empty-state">
-          <span>01</span>
-          <h2>Your meeting pipeline is empty.</h2>
-          <p>Create a focused meeting request. Once it is sent, CallSync will track it from invite to outcome.</p>
-          <button className="pw-primary-button" type="button" onClick={onCreate}>Create first meeting</button>
+          <h2>No meetings yet</h2>
+          <p>Create your first meeting to get started.</p>
+          <button className="pw-primary-button" type="button" onClick={onCreate}>New meeting</button>
         </div>
       ) : (
         <div className="pw-kanban" aria-label="Meeting pipeline board">
@@ -102,19 +90,16 @@ export default function PipelineView({ onCreate }) {
                   return (
                     <a className="pw-meeting-card" href={`/meeting/${meeting.id}`} key={meeting.id}>
                       <div className="pw-meeting-card-top">
-                        <span className="pw-type-chip">{meeting.meetingType || 'General meeting'}</span>
-                        <span className={`pw-status-dot status-${meeting.status}`} aria-label={meeting.status} />
+                        <span className="pw-type-chip">{meeting.meetingType || 'Meeting'}</span>
                       </div>
                       <h3>{meeting.attendeeName || 'Unnamed guest'}</h3>
                       <div className="pw-card-meta">
                         <span>{meeting.status === 'confirmed' ? 'Meeting time' : meeting.status === 'cancelled' ? 'Closed' : 'Created'}</span>
                         <strong>{meeting.status === 'confirmed' ? formatShortDate(meeting.selectedSlot) : formatShortDate(meeting.createdAt)}</strong>
                       </div>
-                      {risk.level !== 'none' && (
-                        <div className={`pw-risk risk-${risk.level}`}><span>{risk.label}</span><small>{risk.detail}</small></div>
+                      {['medium', 'high'].includes(risk.level) && (
+                        <div className={`pw-risk risk-${risk.level}`}><span>{risk.label}</span></div>
                       )}
-                      {meeting.status === 'confirmed' && meeting.durationMinutes && <div className="pw-card-foot"><span>{meeting.durationMinutes} min</span></div>}
-                      {meeting.status !== 'confirmed' && <div className="pw-card-foot"><span>{meeting.slotCount || 0} offered slot{meeting.slotCount === 1 ? '' : 's'}</span></div>}
                     </a>
                   );
                 })}
