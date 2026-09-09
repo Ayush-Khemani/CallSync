@@ -110,12 +110,8 @@ export default function ActionsView() {
   return (
     <section className="pw-page actions-page">
       <header className="pw-page-head compact actions-head">
-        <div>
-          <p className="pw-kicker">Meeting actions</p>
-          <h1>Commitments should not disappear into notes.</h1>
-          <p>A simple task list for the promises that came out of your meetings.</p>
-        </div>
-        <button className="pw-primary-button" type="button" onClick={() => setShowCreate((current) => !current)}>{showCreate ? 'Close' : '+ Add action'}</button>
+        <div><h1>Tasks</h1></div>
+        <button className="pw-primary-button" type="button" onClick={() => setShowCreate((current) => !current)}>{showCreate ? 'Close' : 'Add task'}</button>
       </header>
 
       {showCreate && (
@@ -129,7 +125,7 @@ export default function ActionsView() {
           </label>
           <label className="actions-title-field">
             <span>Action</span>
-            <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Send updated deck, share proposal, make introduction…" />
+            <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="What needs to happen?" />
           </label>
           <label>
             <span>Due</span>
@@ -147,7 +143,7 @@ export default function ActionsView() {
           <button type="button" className={filter === 'completed' ? 'active' : ''} onClick={() => setFilter('completed')}>Completed <span>{completed.length}</span></button>
           <button type="button" className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All <span>{actions.length}</span></button>
         </div>
-        <button className="pw-secondary-button" type="button" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+
       </div>
 
       {loading && !actions.length ? <div className="pw-loading-card">Loading meeting commitments…</div> : (
@@ -160,9 +156,9 @@ export default function ActionsView() {
                   <button type="button" aria-label={action.status === 'open' ? `Complete ${action.title}` : `Reopen ${action.title}`} disabled={busyId === action.actionId} onClick={() => setStatus(action, action.status === 'open' ? 'completed' : 'open')}>{action.status === 'completed' ? '✓' : ''}</button>
                 </div>
                 <a className="actions-item-main" href={`/meeting/${action.meetingId}`}>
-                  <div className="actions-item-meta"><span>{action.source === 'outcome' ? 'From meeting outcome' : 'Manual action'}</span><i>·</i><span>{action.attendeeName || action.attendeeEmail || 'Meeting'}</span></div>
+                  <div className="actions-item-meta"><span>{action.attendeeName || action.attendeeEmail || 'Meeting'}</span></div>
                   <h3>{action.title}</h3>
-                  <small>{action.meetingType || 'Meeting record'} · Open meeting →</small>
+                  <small>{action.meetingType || 'Meeting'}</small>
                 </a>
                 <div className={`actions-due ${due.state}`}><span>{due.state === 'overdue' ? 'Needs attention' : action.status === 'completed' ? 'Completed' : 'Due'}</span><strong>{action.status === 'completed' && action.completedAt ? formatShortDate(action.completedAt) : due.label}</strong></div>
               </article>
