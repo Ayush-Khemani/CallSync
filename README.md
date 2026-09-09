@@ -1,49 +1,194 @@
 # CallSync
 
-CallSync is a lightweight meeting operating system for high-value calls.
+**CallSync is an AI-first meeting operations workspace.**
 
-> Turn an interested conversation into a booked, prepared, completed, remembered, and followed-up meeting.
+Instead of making users navigate through calendars, meeting records, follow-ups, tasks, and relationship history manually, CallSync is moving toward a simpler model:
 
-Calendar sync is infrastructure; the durable meeting record and lifecycle are the product.
+> Tell CallSync what you want done. The agent handles the workflow.
 
-See:
+The chat workspace is the primary product surface. Meetings, People, Tasks, Today, and Calendars remain available as structured records and manual fallbacks behind the agent.
 
-- [Product roadmap](docs/PRODUCT_ROADMAP.md)
-- [Current roadmap status](docs/ROADMAP_STATUS_2026-09-04.md)
-- [Microsoft OAuth production setup](docs/MICROSOFT_OAUTH_SETUP.md)
-- [OAuth token-encryption rollout](Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md)
+Examples:
 
-## Current product scope
+- “Schedule a 30 minute call with Maya next week in the afternoon.”
+- “Prepare me for my next meeting.”
+- “What do I still owe people?”
+- “Show everyone I met recently who has an open commitment.”
+- “Find my active meetings.”
 
-CallSync currently includes:
+The goal is not to add an AI chatbot to a scheduling product. The goal is to make CallSync an **AI meeting operator** backed by reliable calendar, email, meeting-memory, and action systems.
 
-- email/password authentication;
-- Google Calendar and Outlook Calendar OAuth connections;
-- explicit connected/not-connected calendar state in the Calendars workspace;
-- combined availability across Google and Outlook;
+## Product principles
+
+CallSync is being built around a few simple rules:
+
+1. **Workflow before dashboard.** The product should make the next action obvious instead of showing users more metrics.
+2. **Chat first.** Users should be able to describe the outcome they want instead of learning where every feature lives.
+3. **Structured records still matter.** AI operates on durable Meetings, People, Tasks, Outcomes, and Memory rather than opaque chat state.
+4. **Read and prepare automatically.** Searching, summarizing, and preparing can happen without extra friction.
+5. **Confirm external side effects.** Sending invitations or changing external systems requires an explicit approval boundary.
+6. **Never fake success.** Calendar, email, and provider failures remain visible and cannot be represented as completed work.
+
+## Current experience
+
+After login, CallSync opens on the AI workspace.
+
+Primary navigation:
+
+- **Chat** — tell CallSync what you want done;
+- **Today** — work that needs attention now;
+- **Meetings** — lifecycle view for meeting requests and booked conversations;
+- **People** — repeated-attendee history and context;
+- **Tasks** — durable commitments created from meetings;
+- **Calendars** — Google and Microsoft connections.
+
+The manual workspace is intentionally becoming quieter and more utilitarian. The long-term direction is that users should rarely need to navigate through the product to perform routine meeting operations.
+
+## AI agent architecture
+
+The current agent flow is server-side:
+
+```text
+User
+  ↓
+Chat workspace
+  ↓
+POST /api/agent/chat
+  ↓
+CallSync agent orchestrator
+  ↓
+Tool selection
+  ├── Meetings
+  ├── Tasks
+  ├── People / relationship history
+  ├── Meeting preparation
+  └── Scheduling + real calendar availability
+  ↓
+Structured result or approval request
+  ↓
+Confirmed side effect
+  ↓
+Existing CallSync execution services
+```
+
+The browser no longer decides whether a request “looks like” scheduling, tasks, or meetings and then calls those APIs directly. Intent, tool selection, conversation state, and approval state are owned by the backend.
+
+### Current agent tools
+
+The server agent can currently:
+
+- list active, pending, and booked meetings;
+- list open meeting commitments;
+- find a person by name/email and retrieve meeting history plus open work;
+- prepare a pre-call brief for a booked meeting;
+- interpret a natural-language scheduling request;
+- identify missing scheduling information;
+- check real Google/Outlook availability;
+- rank available times;
+- prepare a meeting invitation;
+- create a durable approval request before sending anything.
+
+Scheduling execution uses the same protected meeting-creation path as the normal product rather than a separate AI-only implementation.
+
+### Durable agent state
+
+Agent conversations and approvals are persisted in PostgreSQL:
+
+```text
+agent_threads
+agent_messages
+agent_pending_actions
+```
+
+This means the AI workspace is not dependent on temporary React state. The latest conversation can be restored after reload, and external actions have durable approval state.
+
+Newer proposals supersede stale pending approvals, approvals expire, and selected meeting times are validated against the original agent proposal before execution.
+
+## Meeting lifecycle
+
+Underneath the agent, CallSync still maintains a structured meeting lifecycle:
+
+```text
+Request
+  ↓
+Calendar availability
+  ↓
+Temporary holds
+  ↓
+Guest booking
+  ↓
+Confirmed meeting
+  ↓
+Preparation
+  ↓
+Conversation
+  ↓
+Outcome
+  ↓
+Tasks / follow-up
+  ↓
+Memory + relationship continuity
+```
+
+The canonical meeting record contains the context for one conversation, while People and Tasks provide longitudinal views across meetings.
+
+## Current product capabilities
+
+### Scheduling and calendar coordination
+
+- Google Calendar OAuth;
+- Outlook Calendar OAuth;
+- combined Google + Outlook availability;
 - fail-closed calendar reads when a connected provider cannot be verified;
-- privacy-safe best-fit slot ranking and conflict counts;
-- duration, work-window, interval, and buffer controls;
-- private/busy host-only temporary calendar holds;
-- meeting-request delivery from the host's connected Gmail or Outlook mailbox;
-- public guest booking and qualification questions;
-- selected-hold promotion into the real attendee meeting;
-- unused-hold cleanup and cancellation cleanup;
-- Today daily execution queue for upcoming meetings, stale invites, missing outcomes, and due commitments;
-- meeting pipeline and lifecycle analytics;
-- durable meeting Action Engine with outcome-backed and manual commitments;
-- Actions workspace with open/completed/overdue views;
-- Relationships workspace derived from repeated-attendee meeting history;
-- meeting-record Actions for adding, completing, and reopening commitments in context;
-- editable AI-assisted meeting briefs with deterministic fallback;
-- editable follow-up, pre-call, opening-prompt, and next-step suggestions;
-- connected Gmail/Outlook follow-up sending;
-- post-call outcome capture;
-- durable meeting memory with raw notes kept separate from derived memory;
-- repeated-attendee relationship continuity;
-- request correlation IDs, hardened public health diagnostics, CORS enforcement, and OAuth token-encryption support.
+- duration, work-window, slot interval, and buffer controls;
+- privacy-safe conflict analysis and best-fit slot ranking;
+- private host-only temporary calendar holds;
+- selected-hold promotion into the booked attendee event;
+- cleanup of unused holds;
+- cancellation cleanup across connected providers.
 
-Real-provider production activation is tracked separately from source completion in GitHub issues #14 and #23.
+### Communication
+
+- meeting-request delivery from the host's connected Gmail or Outlook mailbox;
+- guest booking links;
+- qualification questions;
+- booking confirmation delivery;
+- connected-mail follow-ups;
+- explicit delivery state when provider sending fails.
+
+### Meeting intelligence
+
+- editable AI-assisted meeting briefs;
+- deterministic fallback when the AI provider is unavailable;
+- pre-call preparation;
+- follow-up suggestions;
+- opening prompts;
+- next-step suggestions;
+- post-call outcome capture;
+- meeting memory generated from raw notes while keeping the source notes separate.
+
+### Work and relationship continuity
+
+- Today execution queue;
+- durable Tasks / Action Engine;
+- outcome-backed and manually created commitments;
+- complete/reopen task workflow;
+- People view built from repeated-attendee history;
+- repeated-attendee meeting context;
+- previous memory carried into future preparation.
+
+### Reliability and security
+
+- request correlation IDs;
+- hardened public health endpoints;
+- CORS enforcement;
+- fail-closed provider behavior;
+- calendar-hold rollback when meeting creation cannot be protected;
+- explicit provider delivery state;
+- OAuth token-encryption support using AES-256-GCM;
+- generic client errors for unexpected server failures.
+
+Real-provider production activation and failure-path verification remain tracked separately from source completion in GitHub issues #14 and #23.
 
 ## Repository layout
 
@@ -63,42 +208,102 @@ CallSync/
     index.js
     package.json
     vercel.json
+
   frontend/
     public/
     src/
     package.json
     vercel.json
+
   docs/
+    PRODUCT_ROADMAP.md
+    ROADMAP_STATUS_2026-09-04.md
+    MICROSOFT_OAUTH_SETUP.md
 ```
 
 ## Backend architecture
 
-- `Backend/src/app.js` configures Express, CORS, JSON parsing, routes, request context, and error handling.
-- `Backend/src/server.js` starts the local/long-running server.
-- `Backend/index.js` exports the Vercel handler.
-- `Backend/src/config/env.js` centralizes environment configuration.
-- `Backend/src/db/*` owns Postgres pooling and migrations.
-- `Backend/src/routes/*` owns the HTTP API.
-- `Backend/src/services/calendarService.js` owns Google/Outlook calendar behavior and token refresh.
-- `Backend/src/services/mailService.js` owns narrow connected Gmail/Outlook sending.
-- `Backend/src/services/generationService.js`, `workflowGenerationService.js`, and `memoryGenerationService.js` provide server-side AI assistance with deterministic fallback.
-- `Backend/src/utils/tokenCrypto.js` provides AES-256-GCM OAuth token encryption when `TOKEN_ENCRYPTION_KEY` is configured.
+Key boundaries:
+
+- `Backend/src/app.js` — Express application, middleware, routes, and error handling;
+- `Backend/src/config/env.js` — centralized environment configuration;
+- `Backend/src/db/*` — PostgreSQL pool and migrations;
+- `Backend/src/routes/agentRoutes.js` — agent chat, thread restoration, and approval confirmation API;
+- `Backend/src/services/agentOrchestratorService.js` — server-side model/tool loop;
+- `Backend/src/services/agentTools.js` — CallSync tool registry;
+- `Backend/src/services/agentStore.js` — persistent threads, messages, and pending actions;
+- `Backend/src/services/agentAvailabilityService.js` — calendar availability for agent scheduling;
+- `Backend/src/services/meetingCreationService.js` — shared protected meeting creation path used by both normal UI and agents;
+- `Backend/src/services/calendarService.js` — Google/Outlook calendar operations and token refresh;
+- `Backend/src/services/mailService.js` — connected Gmail/Outlook sending;
+- `Backend/src/services/generationService.js` — meeting-brief generation with deterministic fallback;
+- `Backend/src/services/workflowGenerationService.js` — follow-up/pre-call/next-step generation;
+- `Backend/src/services/memoryGenerationService.js` — durable meeting-memory generation;
+- `Backend/src/utils/tokenCrypto.js` — OAuth token encryption.
+
+## Agent safety model
+
+CallSync currently uses a simple capability boundary:
+
+| Capability | Agent behavior |
+| --- | --- |
+| Read meetings | Automatic |
+| Read tasks | Automatic |
+| Read relationship history | Automatic |
+| Generate meeting preparation | Automatic |
+| Check calendar availability | Automatic |
+| Draft scheduling proposal | Automatic |
+| Create calendar holds | Confirmation required |
+| Send meeting request | Confirmation required |
+| Other future external changes | Confirmation required by default |
+
+A confirmed scheduling action is executed only after the backend verifies:
+
+- the approval belongs to the signed-in user;
+- the action is still pending;
+- the action has not expired;
+- selected slots came from the original proposal;
+- the protected meeting-creation workflow can complete.
+
+CallSync does not claim completion unless the execution service returns a real result.
 
 ## Reliability contracts
 
-CallSync intentionally treats external-provider correctness as a release requirement:
+External providers are treated as part of product correctness:
 
-- connected-calendar availability fails closed rather than showing a falsely free day;
-- meeting requests are not sent if every offered slot cannot be protected by calendar holds;
-- a failed selected-hold promotion does not leave CallSync falsely confirmed;
-- confirmation-email failure does not undo a calendar-confirmed booking, but delivery state remains explicit;
-- cancellation surfaces incomplete provider cleanup;
-- unexpected server errors remain generic to clients and carry a request ID for log correlation;
-- AI provider failures/malformed responses fall back to grounded deterministic output.
+- connected-calendar availability fails closed rather than pretending a blocked calendar is free;
+- a meeting request is not sent if all offered slots cannot be protected;
+- failed hold creation rolls back created holds;
+- failed selected-hold promotion cannot leave the meeting falsely confirmed;
+- confirmation-email failure does not undo an otherwise valid calendar booking, but the delivery state remains visible;
+- cancellation exposes incomplete provider cleanup;
+- AI provider failures can fall back to deterministic behavior;
+- unexpected server errors stay generic for clients and include request IDs for log correlation.
+
+## Local development
+
+### Backend
+
+```bash
+cd Backend
+npm install
+cp .env.example .env
+npm run migrate
+npm run dev
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm start
+```
 
 ## Verification
 
-Backend unit checks:
+Backend syntax and unit tests:
 
 ```bash
 cd Backend
@@ -113,7 +318,7 @@ cd Backend
 TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/callsync_test npm run test:integration
 ```
 
-The integration database is reset with `TRUNCATE ... CASCADE`; use only a disposable test database.
+Use only a disposable integration database. The test suite resets data with `TRUNCATE ... CASCADE`.
 
 Frontend:
 
@@ -123,48 +328,13 @@ npm test -- --watchAll=false --runInBand
 npm run build
 ```
 
-## Local setup
-
-Backend:
-
-```bash
-cd Backend
-npm install
-cp .env.example .env
-npm run dev
-```
-
-Frontend:
-
-```bash
-cd frontend
-npm install
-cp .env.example .env
-npm start
-```
-
-Run database migrations:
-
-```bash
-cd Backend
-npm run migrate
-```
-
-Generate a 32-byte token-encryption key when preparing the encryption rollout:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-
-Then follow [Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md](Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md); do not blindly enable encryption without the dry-run/migration verification.
-
 ## Environment variables
 
 ### Backend
 
 Core:
 
-- `DATABASE_URL` (or `DATABASE_URL_V2`)
+- `DATABASE_URL` or `DATABASE_URL_V2`
 - `JWT_SECRET`
 - `FRONTEND_URL`
 - `FRONTEND_URLS`
@@ -183,14 +353,14 @@ Microsoft:
 - `OUTLOOK_CLIENT_SECRET`
 - `OUTLOOK_REDIRECT_URI`
 
-Generation:
+AI:
 
-- `OPENAI_API_KEY` — optional; deterministic fallback remains available without it
-- `OPENAI_MODEL` — optional model override
+- `OPENAI_API_KEY` — optional; deterministic fallback remains available where supported;
+- `OPENAI_MODEL` — optional model override.
 
-Security rollout:
+Security:
 
-- `TOKEN_ENCRYPTION_KEY` — base64-encoded 32-byte key; configure only as part of the documented migration rollout
+- `TOKEN_ENCRYPTION_KEY` — base64-encoded 32-byte key; configure only as part of the documented encryption rollout.
 
 ### Frontend
 
@@ -198,35 +368,110 @@ Security rollout:
 - `REACT_APP_GOOGLE_CLIENT_ID`
 - `REACT_APP_OUTLOOK_CLIENT_ID`
 
-## Production deployment
+## Deployment
 
-Current production targets Vercel for the frontend/backend and Postgres for persistence.
+The current deployment model uses:
 
-Stable production aliases:
+- **Vercel** — frontend;
+- **Vercel** — Express backend/serverless API;
+- **PostgreSQL / Supabase** — persistent application and agent state;
+- **Google APIs** — Google Calendar + Gmail;
+- **Microsoft Graph** — Outlook Calendar + Mail;
+- **OpenAI Responses API** — server-side AI orchestration when configured.
+
+Stable aliases:
 
 - frontend: `https://call-sync-livid.vercel.app`
 - backend: `https://call-sync-irsv.vercel.app`
 
-For OAuth, the provider redirect URI must match the frontend callback origin exactly. Microsoft personal-account support additionally requires the Entra configuration documented in [docs/MICROSOFT_OAUTH_SETUP.md](docs/MICROSOFT_OAUTH_SETUP.md).
-
-Public operational checks:
+Public operational endpoints:
 
 - `/api/health`
 - `/api/health/db`
 
-`/api/health/db` intentionally exposes only safe service/database reachability information and commit correlation—not database hosts or raw provider/database errors.
+The database health endpoint intentionally returns only safe reachability information rather than raw hosts, credentials, or provider errors.
 
-## Release state
+## Technology roadmap
 
-The implementation stack through Stage 7 plus the Today / Actions / Relationships productization layer through PR #40 is shipped. Current work is focused on production activation, repeated real usage, and reliability rather than adding another large feature stage.
+CallSync should add infrastructure because the product needs it, not because the technology looks impressive.
 
-Priority order:
+### Near-term
 
-1. finish the dedicated Outlook-only Priority 0 production run;
-2. finish Priority 0 real-provider revoked-token and delivery/failure-path checks;
-3. verify provider-backed AI generation and deterministic fallback in production;
-4. verify connected Gmail/Outlook follow-up sending;
-5. validate coordination intelligence and lifecycle analytics against real records;
-6. execute the OAuth token-encryption rollout safely;
-7. verify durable meeting memory and repeated-attendee continuity in production;
-8. define the paid-product boundary only after repeated product value is demonstrated.
+**Docker**
+
+Containerize the API and future workers so local development, CI, and deployment use reproducible runtime environments.
+
+**Redis**
+
+Potential uses include:
+
+- short-lived agent execution state;
+- idempotency keys;
+- distributed locks;
+- availability caching;
+- rate limiting;
+- queue coordination.
+
+**Background queue / workers**
+
+As agent actions expand, provider work such as email batches, calendar operations, retries, AI generation, and follow-up workflows should move out of synchronous request paths.
+
+RabbitMQ, Redis-backed queues, or another durable queue can be evaluated based on the workload.
+
+### Evaluate when justified
+
+**GraphQL**
+
+Potentially useful as a read/orchestration gateway once agent and frontend views routinely need Meetings + People + Tasks + Memory in one query. It should not replace straightforward REST endpoints without a real data-shaping need.
+
+**Kubernetes**
+
+Not justified for the current single-application scale. It becomes reasonable only if CallSync evolves into several independently scalable services/workers with real traffic, queue consumers, scheduling workloads, and autoscaling requirements.
+
+A likely future architecture is:
+
+```text
+React client
+    ↓
+API / Agent gateway
+    ↓
+Agent orchestrator
+    ├── Meeting tools
+    ├── Relationship tools
+    ├── Communication tools
+    └── Scheduling tools
+    ↓
+PostgreSQL + Redis
+    ↓
+Durable queue
+    ↓
+Background workers
+    ↓
+Google / Microsoft / AI providers
+```
+
+Docker would package these services. Kubernetes would only orchestrate them once operational scale makes that complexity worthwhile.
+
+## Current priorities
+
+The product direction is now:
+
+1. make the AI workspace the easiest way to operate CallSync;
+2. expand agent tools beyond scheduling, reads, and preparation;
+3. add approval-gated follow-up, rescheduling, cancellation, and task operations;
+4. continue simplifying the manual workspace so it remains a clean system of record;
+5. finish Outlook-only and provider failure-path production verification;
+6. complete Stage 6–7 production activation and token-encryption verification;
+7. introduce Docker and background-job infrastructure when agent workloads justify it;
+8. evaluate Redis, queues, GraphQL, and eventually Kubernetes based on concrete product needs.
+
+## Documentation
+
+- [Product roadmap](docs/PRODUCT_ROADMAP.md)
+- [Current roadmap status](docs/ROADMAP_STATUS_2026-09-04.md)
+- [Microsoft OAuth production setup](docs/MICROSOFT_OAUTH_SETUP.md)
+- [OAuth token-encryption rollout](Backend/scripts/OAUTH_TOKEN_ENCRYPTION_RUNBOOK.md)
+
+---
+
+CallSync is moving from a meeting-management dashboard toward a product where the user can simply say what they want done and let the system coordinate the work safely.
