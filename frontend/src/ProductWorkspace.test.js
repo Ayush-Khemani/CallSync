@@ -92,7 +92,7 @@ test('opens on a Today queue and keeps Pipeline as the full Kanban overview', as
   expect(screen.getByRole('heading', { name: /What needs your attention/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Today/i })).toHaveClass('active');
 
-  fireEvent.click(screen.getByRole('button', { name: /^Pipeline$/i }));
+  fireEvent.click(screen.getByText('Pipeline').closest('button'));
   expect(screen.getByRole('heading', { name: /Every conversation, one clear next state/i })).toBeInTheDocument();
   await waitFor(() => expect(screen.getByText('Maya Chen')).toBeInTheDocument());
 
@@ -127,7 +127,7 @@ test('meeting record centralizes preparation, outcome, actions, memory and activ
   expect(screen.getByText('Northstar Ventures')).toBeInTheDocument();
   expect(screen.getByDisplayValue('Review the current deck.')).toBeInTheDocument();
 
-  fireEvent.click(screen.getByText('More'));
+  fireEvent.click(screen.getAllByText('More').at(-1));
   expect(screen.getByRole('button', { name: 'Actions' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Memory' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Activity' })).toBeInTheDocument();
