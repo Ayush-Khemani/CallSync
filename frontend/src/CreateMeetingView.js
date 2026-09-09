@@ -120,34 +120,30 @@ export default function CreateMeetingView({ onDone }) {
   }
 
   return (
-    <section className="pw-page pw-create-page">
-      <header className="pw-page-head compact">
-        <div><p className="pw-kicker">New meeting</p><h1>Create the request around the conversation.</h1><p>Start with intent, then choose only the slots you actually want to offer.</p></div>
+    <section className="pw-page pw-create-page create-simple-page">
+      <header className="pw-page-head compact create-simple-head">
+        <div>
+          <p className="pw-kicker">New meeting</p>
+          <h1>Schedule a meeting</h1>
+          <p>Choose who it is with, find a few good times, and send the request.</p>
+        </div>
       </header>
 
-      <div className="pw-create-layout">
-        <section className="pw-form-card">
-          <div className="pw-section-title"><span>1</span><div><h2>Meeting intent</h2><p>Use AI or a proven template, then edit everything.</p></div></div>
-          <textarea className="pw-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Example: 30 minute investor intro next Tuesday afternoon. Ask what fund they are with and what they want to discuss." />
-          <div className="pw-template-row">
-            {Object.entries(MEETING_TEMPLATES).map(([key, template]) => (
-              <button key={key} type="button" onClick={() => applyDraft(buildMeetingDraftFromPrompt(template.label))}>
-                <strong>{template.label}</strong><span>{template.durationMinutes} min</span>
-              </button>
-            ))}
-          </div>
-          <button className="pw-secondary-button" type="button" onClick={generateBrief} disabled={busy === 'brief'}>{busy === 'brief' ? 'Generating…' : 'Generate brief'}</button>
-        </section>
+      <div className="create-simple-flow">
+        <section className="create-simple-step">
+          <header className="create-simple-step-head">
+            <span>1</span>
+            <div><h2>Who and when?</h2><p>Start with the information required to find availability.</p></div>
+          </header>
 
-        <section className="pw-form-card">
-          <div className="pw-section-title"><span>2</span><div><h2>Guest & availability</h2><p>CallSync checks both connected calendars before showing slots.</p></div></div>
-          <div className="pw-form-grid two">
+          <div className="pw-form-grid two create-core-fields">
             <label><span>Guest name</span><input value={form.attendeeName} onChange={(event) => set('attendeeName', event.target.value)} placeholder="Maya Chen" /></label>
             <label><span>Guest email</span><input type="email" value={form.attendeeEmail} onChange={(event) => set('attendeeEmail', event.target.value)} placeholder="maya@company.com" /></label>
-            <label><span>Meeting date</span><input type="date" value={form.selectedDate} onChange={(event) => set('selectedDate', event.target.value)} /></label>
+            <label><span>Date</span><input type="date" value={form.selectedDate} onChange={(event) => set('selectedDate', event.target.value)} /></label>
             <label><span>Duration</span><select value={form.durationMinutes} onChange={(event) => set('durationMinutes', Number(event.target.value))}>{[15, 30, 45, 60].map((value) => <option key={value} value={value}>{value} minutes</option>)}</select></label>
           </div>
-          <details className="pw-advanced-settings">
+
+          <details className="pw-advanced-settings create-availability-settings">
             <summary>Availability settings</summary>
             <div className="pw-form-grid three">
               <label><span>Buffer</span><select value={form.bufferMinutes} onChange={(event) => set('bufferMinutes', Number(event.target.value))}>{[0, 5, 10, 15, 30].map((value) => <option key={value} value={value}>{value ? `${value} min` : 'None'}</option>)}</select></label>
@@ -157,31 +153,69 @@ export default function CreateMeetingView({ onDone }) {
               <label><span>Workday ends</span><input type="number" min="1" max="24" value={form.workEndHour} onChange={(event) => set('workEndHour', Number(event.target.value))} /></label>
             </div>
           </details>
-          <button className="pw-primary-button" type="button" onClick={fetchSlots} disabled={busy === 'slots'}>{busy === 'slots' ? 'Checking calendars…' : 'Find available slots'}</button>
-        </section>
 
-        <section className="pw-form-card pw-brief-editor">
-          <div className="pw-section-title"><span>3</span><div><h2>Meeting brief</h2><p>This context travels with the meeting record.</p></div></div>
-          <label><span>Meeting type</span><input value={brief.type} onChange={(event) => setBriefField('type', event.target.value)} /></label>
-          <label><span>Goal</span><textarea value={brief.goal} onChange={(event) => setBriefField('goal', event.target.value)} /></label>
-          <label><span>Invite message</span><textarea value={brief.message} onChange={(event) => setBriefField('message', event.target.value)} /></label>
-          <div className="pw-question-editor">
-            <span>Guest questions</span>
-            {brief.questions.map((question, index) => <input key={`question-${index}`} value={question} onChange={(event) => setQuestion(index, event.target.value)} />)}
+          <div className="create-step-actions">
+            <button className="pw-primary-button" type="button" onClick={fetchSlots} disabled={busy === 'slots'}>{busy === 'slots' ? 'Checking calendars…' : 'Find available times'}</button>
           </div>
-          <label><span>Private host notes</span><textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} placeholder="Only you will see these notes." /></label>
         </section>
 
-        <aside className="pw-slot-card">
-          <div><p className="pw-kicker">Offer these times</p><h2>{selected.length} selected</h2><p>Only selected slots become temporary holds when you create the request.</p></div>
+        <details className="create-context-card">
+          <summary>
+            <div><strong>Add meeting context</strong><small>Optional</small></div>
+            <span>Goal, invite message, guest questions and private notes</span>
+          </summary>
+
+          <div className="create-context-body">
+            <div className="create-context-assist">
+              <label>
+                <span>Describe the meeting</span>
+                <textarea className="pw-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Example: 30 minute investor intro. Ask what fund they are with and what they want to discuss." />
+              </label>
+              <div className="pw-template-row">
+                {Object.entries(MEETING_TEMPLATES).map(([key, template]) => (
+                  <button key={key} type="button" onClick={() => applyDraft(buildMeetingDraftFromPrompt(template.label))}>
+                    <strong>{template.label}</strong><span>{template.durationMinutes} min</span>
+                  </button>
+                ))}
+              </div>
+              <button className="pw-secondary-button" type="button" onClick={generateBrief} disabled={busy === 'brief'}>{busy === 'brief' ? 'Generating…' : 'Generate from description'}</button>
+            </div>
+
+            <div className="pw-brief-editor create-brief-fields">
+              <label><span>Meeting type</span><input value={brief.type} onChange={(event) => setBriefField('type', event.target.value)} /></label>
+              <label><span>Goal</span><textarea value={brief.goal} onChange={(event) => setBriefField('goal', event.target.value)} /></label>
+              <label><span>Invite message</span><textarea value={brief.message} onChange={(event) => setBriefField('message', event.target.value)} /></label>
+              <div className="pw-question-editor">
+                <span>Guest questions</span>
+                {brief.questions.map((question, index) => <input key={`question-${index}`} value={question} onChange={(event) => setQuestion(index, event.target.value)} />)}
+              </div>
+              <label><span>Private notes</span><textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} placeholder="Only you will see these notes." /></label>
+            </div>
+          </div>
+        </details>
+
+        <section className={`create-simple-step create-time-step ${slots.length ? 'ready' : ''}`}>
+          <header className="create-simple-step-head">
+            <span>2</span>
+            <div><h2>Choose the times to offer</h2><p>Only the times you select will be shown to the guest.</p></div>
+            {!!slots.length && <b>{selected.length} selected</b>}
+          </header>
+
           {slots.length ? (
-            <div className="pw-slot-grid">{slots.map((slot) => <button type="button" className={selected.includes(slot) ? 'selected' : ''} key={slot} onClick={() => toggleSlot(slot)}>{new Date(slot).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</button>)}</div>
-          ) : <div className="pw-slot-empty">Choose a date and check availability to see bookable times.</div>}
-          {!!slots.length && <button className="pw-primary-button wide" type="button" onClick={createMeeting} disabled={!selected.length || busy === 'create'}>{busy === 'create' ? 'Creating…' : `Create request · ${selected.length} slot${selected.length === 1 ? '' : 's'}`}</button>}
-        </aside>
+            <>
+              <div className="create-time-grid">{slots.map((slot) => <button type="button" className={selected.includes(slot) ? 'selected' : ''} key={slot} onClick={() => toggleSlot(slot)}><strong>{new Date(slot).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong><span>{new Date(slot).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span></button>)}</div>
+              <div className="create-review-bar">
+                <div><strong>{selected.length ? `${selected.length} time${selected.length === 1 ? '' : 's'} ready to send` : 'Choose at least one time'}</strong><span>{form.attendeeName || form.attendeeEmail || 'Guest'} · {form.durationMinutes} min</span></div>
+                <button className="pw-primary-button" type="button" onClick={createMeeting} disabled={!selected.length || busy === 'create'}>{busy === 'create' ? 'Creating…' : 'Create and send request'}</button>
+              </div>
+            </>
+          ) : (
+            <div className="create-time-empty">Find available times above. Your calendar options will appear here.</div>
+          )}
+        </section>
       </div>
 
-      {message && <div className={`pw-message ${createdLink ? 'success' : ''}`}>{message}{createdLink && <div className="pw-created-actions"><button type="button" onClick={copyCreatedLink}>Copy booking link</button><button type="button" onClick={onDone}>View pipeline</button></div>}</div>}
+      {message && <div className={`pw-message create-feedback ${createdLink ? 'success' : ''}`}>{message}{createdLink && <div className="pw-created-actions"><button type="button" onClick={copyCreatedLink}>Copy booking link</button><button type="button" onClick={onDone}>Open pipeline</button></div>}</div>}
     </section>
   );
 }
