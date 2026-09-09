@@ -92,7 +92,7 @@ test('opens on a Today queue and keeps Pipeline as the full Kanban overview', as
   expect(screen.getByRole('heading', { name: /What needs your attention/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Today/i })).toHaveClass('active');
 
-  fireEvent.click(screen.getByRole('button', { name: /Pipeline/i }));
+  fireEvent.click(screen.getByRole('button', { name: /^Pipeline$/i }));
   expect(screen.getByRole('heading', { name: /Every conversation, one clear next state/i })).toBeInTheDocument();
   await waitFor(() => expect(screen.getByText('Maya Chen')).toBeInTheDocument());
 
