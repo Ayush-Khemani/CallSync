@@ -71,7 +71,7 @@ export default function RelationshipsView() {
               <div className="relationship-context">
                 <span>Last conversation</span>
                 <strong>{relationship.latestContext || relationship.latestMeetingType || 'Meeting'}</strong>
-                <small>{relationship.lastContactAt ? formatShortDate(relationship.lastContactAt) : 'No date'}</small>
+                <small>{relationship.latestMeetingType || 'Meeting'} · {relationship.lastContactAt ? formatShortDate(relationship.lastContactAt) : 'No date'}</small>
               </div>
 
               <div className="relationship-next">
