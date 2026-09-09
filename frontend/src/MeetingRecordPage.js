@@ -3,6 +3,7 @@ import axios from 'axios';
 import { buildPreCallBrief } from './stage5Workflow';
 import { buildFollowUpMessage, getFollowUpMeta, getFollowUpRisk } from './followUpWorkflow';
 import './ProductWorkspace.css';
+import './WorkspaceRefinement.css';
 
 const API_URL = (process.env.REACT_APP_API_URL || 'https://callsync-backend.vercel.app').replace(/\/$/, '');
 
@@ -411,15 +412,18 @@ export default function MeetingRecordPage() {
     return value.split('\n').map((item) => item.trim()).filter(Boolean);
   }
 
-  const tabs = [
+  const primaryTabs = [
     ['overview', 'Overview'],
     ['prepare', 'Prepare'],
     ['followup', 'Follow-up'],
     ['outcome', 'Outcome'],
+  ];
+  const recordTabs = [
     ['actions', 'Actions'],
     ['memory', 'Memory'],
     ['activity', 'Activity'],
   ];
+  const isRecordTab = recordTabs.some(([id]) => id === activeTab);
 
   return (
     <main className="mr-screen">
@@ -436,46 +440,73 @@ export default function MeetingRecordPage() {
             <p>{meeting.attendeeEmail} · {meeting.status === 'confirmed' ? formatDateTime(meeting.selectedSlot) : 'Waiting for booking'} · {meeting.durationMinutes || 60} min</p>
           </div>
           <div className="mr-head-actions">
-            <a className="pw-secondary-button" href={bookingUrl} target="_blank" rel="noreferrer">Open booking page</a>
-            <button className="pw-secondary-button" type="button" onClick={copyBookingLink}>Copy link</button>
-            {meeting.status !== 'cancelled' && <button className="mr-danger-button" type="button" disabled={busy === 'cancel'} onClick={cancelMeeting}>{busy === 'cancel' ? 'Cancelling…' : 'Cancel'}</button>}
+            {meeting.status === 'pending' && <button className="pw-primary-button" type="button" onClick={copyBookingLink}>Copy booking link</button>}
+            <details className="mr-head-menu">
+              <summary>More</summary>
+              <div>
+                <a href={bookingUrl} target="_blank" rel="noreferrer">Open booking page</a>
+                <button type="button" onClick={copyBookingLink}>Copy booking link</button>
+                {meeting.status !== 'cancelled' && <button className="danger" type="button" disabled={busy === 'cancel'} onClick={cancelMeeting}>{busy === 'cancel' ? 'Cancelling…' : 'Cancel meeting'}</button>}
+              </div>
+            </details>
           </div>
         </header>
 
-        {risk.level !== 'none' && <div className={`mr-attention risk-${risk.level}`}><strong>{risk.label}</strong><span>{risk.detail}</span></div>}
+        {['medium', 'high'].includes(risk.level) && <div className={`mr-attention risk-${risk.level}`}><strong>{risk.label}</strong><span>{risk.detail}</span></div>}
         {message && <div className="pw-message">{message}</div>}
 
-        <nav className="mr-tabs" aria-label="Meeting record sections">
-          {tabs.map(([id, label]) => <button type="button" key={id} className={activeTab === id ? 'active' : ''} onClick={() => setActiveTab(id)}>{label}</button>)}
+        <nav className="mr-workflow-nav" aria-label="Meeting workflow">
+          <div className="mr-primary-tabs">
+            {primaryTabs.map(([id, label]) => <button type="button" key={id} className={activeTab === id ? 'active' : ''} onClick={() => setActiveTab(id)}>{label}</button>)}
+          </div>
+          <details className={`mr-record-more ${isRecordTab ? 'active' : ''}`}>
+            <summary>{isRecordTab ? recordTabs.find(([id]) => id === activeTab)?.[1] : 'More'}</summary>
+            <div>
+              {recordTabs.map(([id, label]) => <button type="button" key={id} className={activeTab === id ? 'active' : ''} onClick={(event) => { setActiveTab(id); event.currentTarget.closest('details')?.removeAttribute('open'); }}>{label}</button>)}
+            </div>
+          </details>
         </nav>
 
         {activeTab === 'overview' && (
-          <div className="mr-content-grid">
-            <section className="mr-card large">
-              <span className="mr-label">Meeting brief</span>
-              <h2>{meeting.meetingGoal || 'No goal captured yet.'}</h2>
-              {meeting.inviteMessage && <p>{meeting.inviteMessage}</p>}
-              {!!meeting.qualificationQuestions?.length && <div className="mr-question-list">{meeting.qualificationQuestions.map((question, index) => <div key={`${question}-${index}`}><span>{index + 1}</span><p>{question}</p></div>)}</div>}
+          <div className="mr-overview-layout">
+            <section className="mr-overview-main">
+              <div className="mr-overview-section">
+                <span className="mr-label">Meeting brief</span>
+                <h2>{meeting.meetingGoal || 'No goal captured yet.'}</h2>
+                {meeting.inviteMessage && <p>{meeting.inviteMessage}</p>}
+                {!!meeting.qualificationQuestions?.length && (
+                  <div className="mr-question-list">
+                    {meeting.qualificationQuestions.map((question, index) => <div key={`${question}-${index}`}><span>{index + 1}</span><p>{question}</p></div>)}
+                  </div>
+                )}
+              </div>
+
+              <div className="mr-overview-section">
+                <span className="mr-label">Guest context</span>
+                <h3>What they told you</h3>
+                {meeting.guestAnswers?.length ? meeting.guestAnswers.map((item, index) => <div className="mr-answer" key={`${item.question}-${index}`}><strong>{item.question}</strong><p>{item.answer || 'No answer provided'}</p></div>) : <p className="mr-muted">Guest answers will appear after booking.</p>}
+              </div>
             </section>
-            <section className="mr-card">
-              <span className="mr-label">Guest context</span>
-              <h2>What they told you</h2>
-              {meeting.guestAnswers?.length ? meeting.guestAnswers.map((item, index) => <div className="mr-answer" key={`${item.question}-${index}`}><strong>{item.question}</strong><p>{item.answer || 'No answer provided'}</p></div>) : <p className="mr-muted">Guest answers will appear after booking.</p>}
-            </section>
-            <section className="mr-card">
-              <span className="mr-label">Logistics</span>
-              <dl className="mr-facts">
-                <div><dt>Status</dt><dd>{meeting.status}</dd></div>
-                <div><dt>Duration</dt><dd>{meeting.durationMinutes || 60} min</dd></div>
-                <div><dt>Selected time</dt><dd>{formatDateTime(meeting.selectedSlot)}</dd></div>
-                <div><dt>Offered slots</dt><dd>{meeting.slotCount || 0}</dd></div>
-                <div><dt>Created</dt><dd>{formatDateTime(meeting.createdAt)}</dd></div>
-              </dl>
-            </section>
-            <section className="mr-card large">
-              <div className="mr-card-head"><div><span className="mr-label">Private notes</span><h2>Host context</h2></div><button className="pw-secondary-button" type="button" disabled={busy === 'notes'} onClick={saveInternalNotes}>{busy === 'notes' ? 'Saving…' : 'Save notes'}</button></div>
-              <textarea className="mr-editor tall" value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} placeholder="Context, reminders, or anything only you should see." />
-            </section>
+
+            <aside className="mr-overview-side">
+              <section className="mr-overview-panel">
+                <span className="mr-label">Details</span>
+                <dl className="mr-facts">
+                  <div><dt>Status</dt><dd>{meeting.status}</dd></div>
+                  <div><dt>Duration</dt><dd>{meeting.durationMinutes || 60} min</dd></div>
+                  <div><dt>Time</dt><dd>{meeting.status === 'confirmed' ? formatDateTime(meeting.selectedSlot) : 'Waiting for booking'}</dd></div>
+                  <div><dt>Created</dt><dd>{formatDateTime(meeting.createdAt)}</dd></div>
+                </dl>
+              </section>
+
+              <details className="mr-notes-panel">
+                <summary><strong>Private notes</strong><span>{internalNotes.trim() ? 'Saved host context' : 'Add host-only context'}</span></summary>
+                <div>
+                  <textarea className="mr-editor tall" value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} placeholder="Context, reminders, or anything only you should see." />
+                  <button className="pw-secondary-button" type="button" disabled={busy === 'notes'} onClick={saveInternalNotes}>{busy === 'notes' ? 'Saving…' : 'Save notes'}</button>
+                </div>
+              </details>
+            </aside>
           </div>
         )}
 
