@@ -23,10 +23,10 @@ export default function ProductWorkspace() {
   }
 
   const navigation = [
-    ['today', 'Today', '●'],
-    ['pipeline', 'Pipeline', '▦'],
-    ['relationships', 'Relationships', '◎'],
-    ['actions', 'Actions', '✓'],
+    ['today', 'Today'],
+    ['pipeline', 'Meetings'],
+    ['relationships', 'People'],
+    ['actions', 'Tasks'],
   ];
 
   return (
@@ -35,14 +35,14 @@ export default function ProductWorkspace() {
         <div>
           <Brand />
           <nav className="pw-nav" aria-label="Workspace navigation">
-            {navigation.map(([id, label, icon]) => (
-              <button type="button" key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><span>{icon}</span>{label}</button>
+            {navigation.map(([id, label]) => (
+              <button type="button" key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}>{label}</button>
             ))}
           </nav>
-          <button className="pw-sidebar-create" type="button" onClick={() => setTab('create')}><span>+</span>New meeting</button>
+          <button className="pw-sidebar-create" type="button" onClick={() => setTab('create')}>New meeting</button>
         </div>
         <div className="pw-sidebar-foot">
-          <button className={tab === 'calendars' ? 'pw-sidebar-utility active' : 'pw-sidebar-utility'} type="button" onClick={() => setTab('calendars')}><span>◫</span>Calendars</button>
+          <button className={tab === 'calendars' ? 'pw-sidebar-utility active' : 'pw-sidebar-utility'} type="button" onClick={() => setTab('calendars')}>Calendars</button>
           <button className="pw-sidebar-signout" type="button" onClick={logout}>Sign out</button>
         </div>
       </aside>
