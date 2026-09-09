@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import AgentChatView from './AgentChatView';
 import TodayView from './TodayView';
 import PipelineView from './PipelineView';
 import RelationshipsView from './RelationshipsView';
@@ -10,7 +11,7 @@ import './ProductWorkspace.css';
 import './WorkspaceRefinement.css';
 
 export default function ProductWorkspace() {
-  const [tab, setTab] = useState('today');
+  const [tab, setTab] = useState('chat');
 
   useEffect(() => {
     if (!localStorage.getItem('token')) window.location.replace('/login');
@@ -23,6 +24,7 @@ export default function ProductWorkspace() {
   }
 
   const navigation = [
+    ['chat', 'Chat'],
     ['today', 'Today'],
     ['pipeline', 'Meetings'],
     ['relationships', 'People'],
@@ -47,6 +49,7 @@ export default function ProductWorkspace() {
         </div>
       </aside>
       <section className="pw-main">
+        {tab === 'chat' && <AgentChatView />}
         {tab === 'today' && <TodayView onCreate={() => setTab('create')} onPipeline={() => setTab('pipeline')} />}
         {tab === 'pipeline' && <PipelineView onCreate={() => setTab('create')} />}
         {tab === 'relationships' && <RelationshipsView />}

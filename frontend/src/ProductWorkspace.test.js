@@ -86,11 +86,11 @@ afterEach(() => {
   localStorage.clear();
 });
 
-test('opens on Today and keeps Meetings as the lifecycle overview', async () => {
+test('opens on AI chat and keeps Meetings as the lifecycle fallback', async () => {
   render(<ProductWorkspace />);
 
-  expect(screen.getByRole('heading', { name: 'Today' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /Today/i })).toHaveClass('active');
+  expect(screen.getByRole('heading', { name: /What do you want CallSync to do/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Chat/i })).toHaveClass('active');
 
   fireEvent.click(screen.getByRole('button', { name: 'Meetings' }));
   expect(screen.getByRole('heading', { name: 'Meetings' })).toBeInTheDocument();
@@ -103,6 +103,7 @@ test('opens on Today and keeps Meetings as the lifecycle overview', async () => 
 
 test('Today surfaces durable meeting actions and can complete them without leaving the workspace', async () => {
   render(<ProductWorkspace />);
+  fireEvent.click(screen.getByRole('button', { name: 'Today' }));
 
   await waitFor(() => expect(screen.getByText('Send the updated investor deck')).toBeInTheDocument());
   fireEvent.click(screen.getByRole('button', { name: /Done/i }));
