@@ -86,14 +86,14 @@ afterEach(() => {
   localStorage.clear();
 });
 
-test('opens on a Today queue and keeps Pipeline as the full Kanban overview', async () => {
+test('opens on Today and keeps Meetings as the lifecycle overview', async () => {
   render(<ProductWorkspace />);
 
-  expect(screen.getByRole('heading', { name: /What needs your attention/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Today' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Today/i })).toHaveClass('active');
 
-  fireEvent.click(screen.getByText('Pipeline').closest('button'));
-  expect(screen.getByRole('heading', { name: /Every conversation, one clear next state/i })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Meetings' }));
+  expect(screen.getByRole('heading', { name: 'Meetings' })).toBeInTheDocument();
   await waitFor(() => expect(screen.getByText('Maya Chen')).toBeInTheDocument());
 
   const card = screen.getByRole('link', { name: /Maya Chen/i });
