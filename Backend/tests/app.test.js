@@ -117,6 +117,25 @@ test('generation endpoint rejects missing auth token', async () => {
   assert.deepEqual(response.body, { error: 'No token provided' });
 });
 
+test('agent chat rejects missing auth token', async () => {
+  const response = await request('POST', '/api/agent/chat', {
+    message: 'Show my meetings',
+    timeZone: 'Europe/Budapest',
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.body, { error: 'No token provided' });
+});
+
+test('agent action confirmation rejects missing auth token', async () => {
+  const response = await request('POST', '/api/agent/actions/00000000-0000-0000-0000-000000000000/confirm', {
+    selectedSlots: ['2026-09-15T13:00:00.000Z'],
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.body, { error: 'No token provided' });
+});
+
 test('registration validates email and password before database writes', async () => {
   const invalidEmail = await request('POST', '/api/auth/register', {
     email: 'not-an-email',
