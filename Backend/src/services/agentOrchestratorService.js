@@ -55,29 +55,24 @@ function uiPayloadForTool(name, result) {
   return null;
 }
 
-function inputFromHistory(messages, userTimeZone) {
-  const input = messages.slice(-24).map((message) => ({
+function inputFromHistory(messages) {
+  return messages.slice(-24).map((message) => ({
     role: message.role,
     content: cleanText(message.content, 10000),
   }));
-  input.push({
-    role: 'user',
-    content: `Runtime context: user timezone is ${userTimeZone || 'UTC'}. Use this only for timezone-sensitive operations.`,
-  });
-  return input;
 }
 
 async function callProvider({ messages, userId, userTimeZone }) {
   if (!config.openaiApiKey) return null;
 
-  let input = inputFromHistory(messages, userTimeZone);
+  let input = inputFromHistory(messages);
   let latestPayload = null;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const response = await axios.post(OPENAI_RESPONSES_URL, {
       model: config.openaiModel,
       store: false,
-      instructions: INSTRUCTIONS,
+      instructions: `${INSTRUCTIONS} Runtime timezone: ${userTimeZone || 'UTC'}.`,
       input,
       tools: AGENT_TOOLS,
       tool_choice: 'auto',
