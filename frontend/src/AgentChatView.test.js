@@ -11,105 +11,155 @@ jest.mock('axios', () => ({
   },
 }), { virtual: true });
 
+const proposal = {
+  attendeeName: 'Maya Chen',
+  attendeeEmail: 'maya@example.com',
+  date: '2026-09-15',
+  durationMinutes: 30,
+  timeZone: 'Europe/Budapest',
+  slots: [
+    '2026-09-15T13:00:00.000Z',
+    '2026-09-15T14:00:00.000Z',
+    '2026-09-15T15:00:00.000Z',
+  ],
+  selectedSlots: [
+    '2026-09-15T13:00:00.000Z',
+    '2026-09-15T14:00:00.000Z',
+  ],
+  brief: {
+    type: 'Investor meeting',
+    goal: 'Discuss the round',
+    message: 'Pick a time that works.',
+    questions: ['What should we cover?'],
+  },
+};
+
 beforeEach(() => {
   localStorage.setItem('token', 'test-token');
   axios.get.mockReset();
   axios.post.mockReset();
 
+  axios.get.mockResolvedValue({
+    data: { thread: null, messages: [] },
+  });
+
   axios.post.mockImplementation((url) => {
-    if (url.includes('/api/intelligence/generate')) {
+    if (url.includes('/api/agent/chat')) {
       return Promise.resolve({
         data: {
-          output: {
-            formPatch: {
-              attendeeEmail: 'maya@example.com',
-              attendeeName: 'Maya Chen',
-              selectedDate: '2026-09-15',
-              durationMinutes: 30,
-              bufferMinutes: 15,
-              slotIntervalMinutes: 30,
-              workStartHour: 13,
-              workEndHour: 17,
-            },
-            brief: {
-              type: 'Investor meeting',
-              goal: 'Discuss the round.',
-              questions: ['What should we cover?'],
-              message: 'Pick a time that works.',
+          thread: { id: 'thread-1', title: 'Schedule with Maya' },
+          message: {
+            id: 10,
+            role: 'assistant',
+            content: 'I checked your calendars and prepared the meeting. Confirm before I send anything.',
+            payload: {
+              type: 'schedule_confirmation',
+              actionId: 'action-1',
+              proposal,
             },
           },
         },
       });
     }
 
-    if (url.includes('/api/meetings/create')) {
+    if (url.includes('/api/agent/actions/action-1/confirm')) {
       return Promise.resolve({
         data: {
-          uniqueLink: 'agent-meeting-link',
-          delivery: { requestEmail: { sent: true } },
+          message: {
+            id: 11,
+            role: 'assistant',
+            content: 'Done. I created the meeting with Maya Chen and sent the request.',
+            payload: {
+              type: 'created',
+              meetingId: 7,
+              meetingName: 'Maya Chen',
+              uniqueLink: 'agent-meeting-link',
+              sent: true,
+            },
+          },
         },
       });
     }
 
     return Promise.reject(new Error(`Unexpected POST ${url}`));
   });
-
-  axios.get.mockImplementation((url) => {
-    if (url.includes('/api/calendar/available-slots')) {
-      return Promise.resolve({
-        data: {
-          availableSlots: [
-            '2026-09-15T13:00:00.000Z',
-            '2026-09-15T14:00:00.000Z',
-            '2026-09-15T15:00:00.000Z',
-          ],
-          timeZone: 'Europe/Budapest',
-        },
-      });
-    }
-    return Promise.reject(new Error(`Unexpected GET ${url}`));
-  });
 });
 
 afterEach(() => localStorage.clear());
 
-test('schedules through chat with explicit confirmation before creating the meeting', async () => {
+test('uses the server agent for scheduling and confirms through the durable action endpoint', async () => {
   render(<AgentChatView />);
 
+  await waitFor(() => expect(axios.get).toHaveBeenCalledWith(
+    expect.stringContaining('/api/agent/threads/latest'),
+    expect.objectContaining({ headers: expect.any(Object) })
+  ));
+
   fireEvent.change(screen.getByLabelText('Ask CallSync'), {
-    target: { value: 'Schedule 30 minutes with Maya Chen at maya@example.com next week in the afternoon' },
+    target: { value: 'Schedule 30 minutes with Maya Chen at maya@example.com next week' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
 
   await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
-    expect.stringContaining('/api/intelligence/generate'),
-    expect.objectContaining({ kind: 'meeting_brief' }),
+    expect.stringContaining('/api/agent/chat'),
+    expect.objectContaining({
+      message: expect.stringContaining('Schedule 30 minutes'),
+      timeZone: expect.any(String),
+    }),
     expect.objectContaining({ headers: expect.any(Object) })
   ));
 
-  await waitFor(() => expect(axios.get).toHaveBeenCalledWith(
-    expect.stringContaining('/api/calendar/available-slots'),
-    expect.objectContaining({
-      params: expect.objectContaining({ date: '2026-09-15', durationMinutes: 30 }),
-      headers: expect.any(Object),
-    })
-  ));
-
   const confirm = await screen.findByRole('button', { name: 'Send meeting request' });
-  expect(axios.post.mock.calls.filter(([url]) => url.includes('/api/meetings/create'))).toHaveLength(0);
+
+  const directLegacyCalls = axios.post.mock.calls.filter(([url]) => (
+    url.includes('/api/intelligence/generate')
+    || url.includes('/api/meetings/create')
+  ));
+  expect(directLegacyCalls).toHaveLength(0);
+  expect(axios.get.mock.calls.some(([url]) => url.includes('/api/calendar/available-slots'))).toBe(false);
 
   fireEvent.click(confirm);
 
   await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
-    expect.stringContaining('/api/meetings/create'),
+    expect.stringContaining('/api/agent/actions/action-1/confirm'),
     expect.objectContaining({
-      attendeeEmail: 'maya@example.com',
-      attendeeName: 'Maya Chen',
-      durationMinutes: 30,
-      slots: expect.arrayContaining(['2026-09-15T13:00:00.000Z']),
+      selectedSlots: expect.arrayContaining(['2026-09-15T13:00:00.000Z']),
     }),
     expect.objectContaining({ headers: expect.any(Object) })
   ));
 
   await waitFor(() => expect(screen.getByText(/Done. I created the meeting with Maya Chen/i)).toBeInTheDocument());
+  expect(screen.getByText('Request sent')).toBeInTheDocument();
+});
+
+test('restores the latest persistent conversation', async () => {
+  axios.get.mockResolvedValueOnce({
+    data: {
+      thread: { id: 'thread-existing', title: 'My meeting work' },
+      messages: [
+        { id: 1, role: 'user', content: 'Show my tasks', payload: {} },
+        {
+          id: 2,
+          role: 'assistant',
+          content: 'These are your open meeting tasks.',
+          payload: {
+            type: 'tasks',
+            items: [{
+              actionId: 4,
+              meetingId: 7,
+              title: 'Send the deck',
+              attendeeName: 'Maya Chen',
+              dueAt: null,
+            }],
+          },
+        },
+      ],
+    },
+  });
+
+  render(<AgentChatView />);
+
+  await waitFor(() => expect(screen.getByText('Show my tasks')).toBeInTheDocument());
+  expect(screen.getByText('These are your open meeting tasks.')).toBeInTheDocument();
+  expect(screen.getByText('Send the deck')).toBeInTheDocument();
 });
