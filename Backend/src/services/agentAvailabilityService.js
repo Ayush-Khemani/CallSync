@@ -31,7 +31,12 @@ async function fetchEvents({ provider, token, windowStart, windowEnd, onTokenRef
   }
 }
 
-async function getAgentAvailability({ userId, date, options = {} }) {
+function withoutEvent(events, eventId) {
+  if (!eventId) return events;
+  return events.filter((event) => event?.id !== eventId);
+}
+
+async function getAgentAvailability({ userId, date, options = {}, ignoreEvents = {} }) {
   const window = getAvailabilityWindow(date, options);
   if (!window) throw new HttpError(400, 'Valid date and working hours are required');
 
@@ -51,7 +56,7 @@ async function getAgentAvailability({ userId, date, options = {} }) {
     [serializeCalendarToken(bundle), userId]
   );
 
-  const [google, outlook] = await Promise.all([
+  const [googleEvents, outlookEvents] = await Promise.all([
     fetchEvents({
       provider: 'Google',
       token: user.google_token,
@@ -68,7 +73,10 @@ async function getAgentAvailability({ userId, date, options = {} }) {
     }),
   ]);
 
+  const google = withoutEvent(googleEvents, ignoreEvents.googleEventId);
+  const outlook = withoutEvent(outlookEvents, ignoreEvents.outlookEventId);
   const analysis = analyzeAvailability({ google, outlook }, date, options);
+
   return {
     ...analysis,
     timeZone: window.options.timeZone,
@@ -81,4 +89,4 @@ async function getAgentAvailability({ userId, date, options = {} }) {
   };
 }
 
-module.exports = { getAgentAvailability };
+module.exports = { getAgentAvailability, _test: { withoutEvent } };
