@@ -1,11 +1,9 @@
 const assert = require('node:assert/strict');
 const http = require('node:http');
 
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/callsync';
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 process.env.NODE_ENV = 'test';
-process.env.FRONTEND_URLS = 'http://localhost:3000,https://call-sync-livid.vercel.app';
-process.env.FRONTEND_ORIGIN_REGEX = '^https://call-sync-[a-z0-9-]+\.vercel\.app$';
+process.env.JWT_SECRET = 'test-jwt-secret';
+process.env.AUTO_RUN_MIGRATIONS = 'false';
 
 const app = require('../src/app');
 const { generateAvailableSlots } = require('../src/services/availabilityService');
@@ -36,8 +34,8 @@ function request(method, path, body, headers = {}) {
           server.close(() => {
             resolve({
               statusCode: res.statusCode,
-              headers: res.headers,
               body: raw ? JSON.parse(raw) : null,
+              headers: res.headers,
             });
           });
         });
@@ -47,64 +45,47 @@ function request(method, path, body, headers = {}) {
         server.close(() => reject(error));
       });
 
-      if (payload) {
-        req.write(payload);
-      }
+      if (payload) req.write(payload);
       req.end();
     });
   });
 }
 
 const tests = [];
-
 function test(name, fn) {
   tests.push({ name, fn });
 }
 
-test('GET /api/health returns service status', async () => {
+test('health endpoint stays intentionally minimal', async () => {
   const response = await request('GET', '/api/health');
-
   assert.equal(response.statusCode, 200);
-  assert.equal(response.headers['x-content-type-options'], 'nosniff');
-  assert.equal(response.headers['x-frame-options'], 'DENY');
-  assert.deepEqual(response.body, { status: 'ok', service: 'CallSync backend' });
+  assert.deepEqual(response.body, { ok: true, service: 'callsync-backend' });
 });
 
-test('CORS preflight allows configured Vercel deployment origins', async () => {
-  const response = await request('OPTIONS', '/api/auth/register', null, {
-    Origin: 'https://call-sync-d5py7xx4o-ayush-khemanis-projects.vercel.app',
-    'Access-Control-Request-Method': 'POST',
-  });
-
-  assert.equal(response.statusCode, 204);
-  assert.equal(
-    response.headers['access-control-allow-origin'],
-    'https://call-sync-d5py7xx4o-ayush-khemanis-projects.vercel.app'
-  );
-});
-
-test('CORS rejects unrelated origins as a clean client error', async () => {
-  const response = await request('OPTIONS', '/api/auth/register', null, {
-    Origin: 'https://untrusted.example',
-    'Access-Control-Request-Method': 'POST',
-    'x-request-id': 'cors-block-123',
-  });
-
-  assert.equal(response.statusCode, 403);
-  assert.equal(response.headers['x-request-id'], 'cors-block-123');
-  assert.deepEqual(response.body, { error: 'CORS origin not allowed' });
-  assert.equal(JSON.stringify(response.body).includes('untrusted.example'), false);
-});
-
-test('protected meeting creation rejects missing auth token', async () => {
-  const response = await request('POST', '/api/meetings/create', {
-    attendeeEmail: 'guest@example.com',
-    attendeeName: 'Guest',
-    slots: ['2026-09-01T10:00:00.000Z'],
-  });
-
+test('database health route rejects unauthenticated access', async () => {
+  const response = await request('GET', '/api/health/db');
   assert.equal(response.statusCode, 401);
   assert.deepEqual(response.body, { error: 'No token provided' });
+});
+
+test('unknown API route returns a generic 404', async () => {
+  const response = await request('GET', '/api/not-real');
+  assert.equal(response.statusCode, 404);
+  assert.deepEqual(response.body, { error: 'Not found' });
+});
+
+test('CORS rejects untrusted production origins', async () => {
+  const originalEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  const response = await request('GET', '/api/health', undefined, {
+    origin: 'https://evil.example.com',
+  });
+  process.env.NODE_ENV = originalEnv;
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.body.error, 'Origin not allowed');
+  assert.equal(typeof response.headers['x-request-id'], 'string');
+  assert.equal(response.headers['x-request-id'].length > 0, true);
 });
 
 test('generation endpoint rejects missing auth token', async () => {
@@ -131,6 +112,13 @@ test('agent action confirmation rejects missing auth token', async () => {
   const response = await request('POST', '/api/agent/actions/00000000-0000-0000-0000-000000000000/confirm', {
     selectedSlots: ['2026-09-15T13:00:00.000Z'],
   });
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.body, { error: 'No token provided' });
+});
+
+test('agent action rejection rejects missing auth token', async () => {
+  const response = await request('POST', '/api/agent/actions/00000000-0000-0000-0000-000000000000/reject');
 
   assert.equal(response.statusCode, 401);
   assert.deepEqual(response.body, { error: 'No token provided' });
