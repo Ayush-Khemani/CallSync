@@ -201,7 +201,13 @@ router.post('/agent/chat', authMiddleware, asyncHandler(async (req, res) => {
   await saveMessage({ userId: req.userId, threadId: thread.id, role: 'user', content: message });
 
   const history = await listMessages(req.userId, thread.id, 30);
-  const turn = await runAgentTurn({ messages: history, message, userId: req.userId, userTimeZone });
+  const turn = await runAgentTurn({
+    messages: history,
+    message,
+    userId: req.userId,
+    userTimeZone,
+    threadId: thread.id,
+  });
 
   let payload = turn.payload || {};
   const pendingSpec = pendingActionForPayload(payload);
