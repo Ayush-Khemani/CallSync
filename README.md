@@ -12,9 +12,11 @@ Examples:
 
 - “Schedule a 30 minute call with Maya next week in the afternoon.”
 - “Prepare me for my next meeting.”
+- “Follow up with Maya if she still has not booked.”
+- “Move my meeting with Alex to Thursday afternoon.”
+- “Cancel Friday’s meeting with Sam.”
+- “Mark the send-deck task complete.”
 - “What do I still owe people?”
-- “Show everyone I met recently who has an open commitment.”
-- “Find my active meetings.”
 
 The goal is not to add an AI chatbot to a scheduling product. The goal is to make CallSync an **AI meeting operator** backed by reliable calendar, email, meeting-memory, and action systems.
 
@@ -26,8 +28,9 @@ CallSync is being built around a few simple rules:
 2. **Chat first.** Users should be able to describe the outcome they want instead of learning where every feature lives.
 3. **Structured records still matter.** AI operates on durable Meetings, People, Tasks, Outcomes, and Memory rather than opaque chat state.
 4. **Read and prepare automatically.** Searching, summarizing, and preparing can happen without extra friction.
-5. **Confirm external side effects.** Sending invitations or changing external systems requires an explicit approval boundary.
-6. **Never fake success.** Calendar, email, and provider failures remain visible and cannot be represented as completed work.
+5. **Confirm external side effects.** Sending messages or changing external calendars requires an explicit approval boundary.
+6. **Keep internal work lightweight.** Reversible CallSync-only actions such as completing a task can happen directly once the target is identified.
+7. **Never fake success.** Calendar, email, and provider failures remain visible and cannot be represented as completed work.
 
 ## Current experience
 
@@ -42,11 +45,11 @@ Primary navigation:
 - **Tasks** — durable commitments created from meetings;
 - **Calendars** — Google and Microsoft connections.
 
-The manual workspace is intentionally becoming quieter and more utilitarian. The long-term direction is that users should rarely need to navigate through the product to perform routine meeting operations.
+The manual workspace is intentionally quieter and more utilitarian. The long-term direction is that users should rarely need to navigate through the product to perform routine meeting operations.
 
 ## AI agent architecture
 
-The current agent flow is server-side:
+CallSync now uses **LangGraph** as the server-side orchestration layer for the model/tool loop.
 
 ```text
 User
@@ -55,23 +58,56 @@ Chat workspace
   ↓
 POST /api/agent/chat
   ↓
-CallSync agent orchestrator
+CallSync agent runtime
   ↓
-Tool selection
+LangGraph StateGraph
+  ├── model node
+  ├── conditional routing
+  ├── tool node
+  └── model ↔ tool loop
+  ↓
+CallSync tool registry
   ├── Meetings
   ├── Tasks
   ├── People / relationship history
   ├── Meeting preparation
-  └── Scheduling + real calendar availability
+  ├── Scheduling + real calendar availability
+  ├── Follow-up preparation
+  ├── Cancellation preparation
+  └── Rescheduling preparation
   ↓
-Structured result or approval request
+Structured result or durable approval request
   ↓
 Confirmed side effect
   ↓
 Existing CallSync execution services
 ```
 
-The browser no longer decides whether a request “looks like” scheduling, tasks, or meetings and then calls those APIs directly. Intent, tool selection, conversation state, and approval state are owned by the backend.
+LangGraph owns orchestration and state transitions during an agent run. CallSync still owns the business rules: meeting creation, calendar protection, connected-mail sending, cancellation, rescheduling, task state, persistence, and approval validation remain application services rather than framework-specific logic.
+
+The browser does not decide whether a request “looks like” scheduling, follow-up, cancellation, tasks, or meetings and then call those APIs directly. Intent and tool selection happen on the server.
+
+### LangGraph execution model
+
+The current graph is deliberately small and explicit:
+
+```text
+START
+  ↓
+model
+  ├── final answer ─────────→ END
+  │
+  └── tool call(s)
+          ↓
+        tools
+          ↓
+        model
+          ↺
+```
+
+The graph preserves the existing six-tool-round safety ceiling and also uses LangGraph’s recursion limit as a second guard against runaway execution.
+
+CallSync currently keeps conversation persistence and external-action approval state in its own PostgreSQL tables rather than using an in-memory LangGraph checkpointer. A future step can move resumable human-in-the-loop execution to a production PostgreSQL LangGraph checkpointer and native interrupt/resume semantics without rewriting the underlying CallSync services.
 
 ### Current agent tools
 
@@ -84,11 +120,15 @@ The server agent can currently:
 - interpret a natural-language scheduling request;
 - identify missing scheduling information;
 - check real Google/Outlook availability;
-- rank available times;
-- prepare a meeting invitation;
-- create a durable approval request before sending anything.
+- rank available meeting times;
+- prepare and create a meeting request after approval;
+- prepare an editable follow-up email;
+- send an approved follow-up through the user’s connected Gmail or Outlook mailbox;
+- prepare a meeting cancellation and execute it after approval;
+- find new availability for a booked meeting and reschedule after approval;
+- complete or reopen internal CallSync tasks directly.
 
-Scheduling execution uses the same protected meeting-creation path as the normal product rather than a separate AI-only implementation.
+Scheduling, follow-up, cancellation, and rescheduling all reuse CallSync’s normal protected backend services rather than creating weaker AI-only execution paths.
 
 ### Durable agent state
 
@@ -102,11 +142,11 @@ agent_pending_actions
 
 This means the AI workspace is not dependent on temporary React state. The latest conversation can be restored after reload, and external actions have durable approval state.
 
-Newer proposals supersede stale pending approvals, approvals expire, and selected meeting times are validated against the original agent proposal before execution.
+Newer proposals supersede stale pending approvals. Approvals expire. Selected meeting times are validated against the original proposal, and a follow-up cannot be switched to a mailbox that was not available in the original approved action.
 
 ## Meeting lifecycle
 
-Underneath the agent, CallSync still maintains a structured meeting lifecycle:
+Underneath the agent, CallSync maintains a structured meeting lifecycle:
 
 ```text
 Request
@@ -145,7 +185,10 @@ The canonical meeting record contains the context for one conversation, while Pe
 - private host-only temporary calendar holds;
 - selected-hold promotion into the booked attendee event;
 - cleanup of unused holds;
-- cancellation cleanup across connected providers.
+- cancellation cleanup across connected providers;
+- approval-gated rescheduling across connected providers;
+- cross-provider reschedule rollback if one connected calendar update fails;
+- reschedule availability that ignores the meeting’s own current event to avoid false self-conflicts.
 
 ### Communication
 
@@ -154,6 +197,8 @@ The canonical meeting record contains the context for one conversation, while Pe
 - qualification questions;
 - booking confirmation delivery;
 - connected-mail follow-ups;
+- editable AI-prepared follow-up drafts inside Chat;
+- explicit approval before agent-sent follow-up email;
 - explicit delivery state when provider sending fails.
 
 ### Meeting intelligence
@@ -173,6 +218,7 @@ The canonical meeting record contains the context for one conversation, while Pe
 - durable Tasks / Action Engine;
 - outcome-backed and manually created commitments;
 - complete/reopen task workflow;
+- agent-driven task completion/reopening;
 - People view built from repeated-attendee history;
 - repeated-attendee meeting context;
 - previous memory carried into future preparation.
@@ -184,7 +230,10 @@ The canonical meeting record contains the context for one conversation, while Pe
 - CORS enforcement;
 - fail-closed provider behavior;
 - calendar-hold rollback when meeting creation cannot be protected;
+- reschedule rollback when connected providers cannot be updated consistently;
 - explicit provider delivery state;
+- durable expiring agent approvals;
+- server-side validation of approved slots/mailboxes;
 - OAuth token-encryption support using AES-256-GCM;
 - generic client errors for unexpected server failures.
 
@@ -229,11 +278,17 @@ Key boundaries:
 - `Backend/src/config/env.js` — centralized environment configuration;
 - `Backend/src/db/*` — PostgreSQL pool and migrations;
 - `Backend/src/routes/agentRoutes.js` — agent chat, thread restoration, and approval confirmation API;
-- `Backend/src/services/agentOrchestratorService.js` — server-side model/tool loop;
-- `Backend/src/services/agentTools.js` — CallSync tool registry;
-- `Backend/src/services/agentStore.js` — persistent threads, messages, and pending actions;
-- `Backend/src/services/agentAvailabilityService.js` — calendar availability for agent scheduling;
-- `Backend/src/services/meetingCreationService.js` — shared protected meeting creation path used by both normal UI and agents;
+- `Backend/src/services/agentOrchestratorService.js` — CallSync runtime wrapper and deterministic fallback;
+- `Backend/src/services/agentGraphService.js` — LangGraph StateGraph model/tool orchestration;
+- `Backend/src/services/agentRegistry.js` — unified tool registry;
+- `Backend/src/services/agentTools.js` — read/preparation tools;
+- `Backend/src/services/agentActionTools.js` — follow-up, cancellation, rescheduling, and task-action tools;
+- `Backend/src/services/agentStore.js` — persistent threads, messages, and pending approvals;
+- `Backend/src/services/agentAvailabilityService.js` — calendar availability for agent scheduling/rescheduling;
+- `Backend/src/services/meetingCreationService.js` — protected meeting creation used by normal UI and agents;
+- `Backend/src/services/meetingLifecycleService.js` — reusable cancellation and rescheduling behavior;
+- `Backend/src/services/followUpService.js` — reusable connected-mail follow-up preparation/sending;
+- `Backend/src/services/actionMutationService.js` — reusable internal task-state mutation;
 - `Backend/src/services/calendarService.js` — Google/Outlook calendar operations and token refresh;
 - `Backend/src/services/mailService.js` — connected Gmail/Outlook sending;
 - `Backend/src/services/generationService.js` — meeting-brief generation with deterministic fallback;
@@ -243,8 +298,6 @@ Key boundaries:
 
 ## Agent safety model
 
-CallSync currently uses a simple capability boundary:
-
 | Capability | Agent behavior |
 | --- | --- |
 | Read meetings | Automatic |
@@ -253,19 +306,16 @@ CallSync currently uses a simple capability boundary:
 | Generate meeting preparation | Automatic |
 | Check calendar availability | Automatic |
 | Draft scheduling proposal | Automatic |
-| Create calendar holds | Confirmation required |
-| Send meeting request | Confirmation required |
-| Other future external changes | Confirmation required by default |
+| Complete/reopen internal task | Automatic after target identification |
+| Create calendar holds / send meeting request | Confirmation required |
+| Send follow-up email | Confirmation required |
+| Cancel meeting / calendar events | Confirmation required |
+| Reschedule connected calendar event | Confirmation required |
+| Future external changes | Confirmation required by default |
 
-A confirmed scheduling action is executed only after the backend verifies:
+Before an approved external action executes, the backend verifies ownership, pending state, expiry, and action-specific constraints. Scheduling/rescheduling times must come from the original proposal; follow-up mailboxes must come from the original available-provider set.
 
-- the approval belongs to the signed-in user;
-- the action is still pending;
-- the action has not expired;
-- selected slots came from the original proposal;
-- the protected meeting-creation workflow can complete.
-
-CallSync does not claim completion unless the execution service returns a real result.
+CallSync does not claim completion unless the underlying execution service returns a real result.
 
 ## Reliability contracts
 
@@ -275,9 +325,10 @@ External providers are treated as part of product correctness:
 - a meeting request is not sent if all offered slots cannot be protected;
 - failed hold creation rolls back created holds;
 - failed selected-hold promotion cannot leave the meeting falsely confirmed;
+- cross-provider rescheduling attempts rollback if only one provider update succeeds;
 - confirmation-email failure does not undo an otherwise valid calendar booking, but the delivery state remains visible;
 - cancellation exposes incomplete provider cleanup;
-- AI provider failures can fall back to deterministic behavior;
+- AI/LangGraph failures can fall back to deterministic basic behavior;
 - unexpected server errors stay generic for clients and include request IDs for log correlation.
 
 ## Local development
@@ -310,6 +361,8 @@ cd Backend
 npm run check
 npm test
 ```
+
+The unit suite includes dedicated LangGraph routing tests for model→tool→model transitions, safe termination, structured payload propagation, and timezone injection.
 
 Database-backed integration tests:
 
@@ -374,10 +427,11 @@ The current deployment model uses:
 
 - **Vercel** — frontend;
 - **Vercel** — Express backend/serverless API;
-- **PostgreSQL / Supabase** — persistent application and agent state;
+- **PostgreSQL / Supabase** — persistent application, conversation, and approval state;
+- **LangGraph** — server-side agent orchestration;
 - **Google APIs** — Google Calendar + Gmail;
 - **Microsoft Graph** — Outlook Calendar + Mail;
-- **OpenAI Responses API** — server-side AI orchestration when configured.
+- **OpenAI Responses API** — model/tool decisions when configured.
 
 Stable aliases:
 
@@ -395,7 +449,11 @@ The database health endpoint intentionally returns only safe reachability inform
 
 CallSync should add infrastructure because the product needs it, not because the technology looks impressive.
 
-### Near-term
+### Next infrastructure steps
+
+**Durable LangGraph checkpoints / interrupts**
+
+The graph currently runs inside one request while conversations and approvals are persisted by CallSync. The next orchestration step is evaluating a PostgreSQL LangGraph checkpointer so long-running graph execution can pause and resume natively around human approvals without relying on process memory.
 
 **Docker**
 
@@ -405,7 +463,7 @@ Containerize the API and future workers so local development, CI, and deployment
 
 Potential uses include:
 
-- short-lived agent execution state;
+- short-lived execution state;
 - idempotency keys;
 - distributed locks;
 - availability caching;
@@ -435,7 +493,7 @@ React client
     ↓
 API / Agent gateway
     ↓
-Agent orchestrator
+LangGraph orchestrator
     ├── Meeting tools
     ├── Relationship tools
     ├── Communication tools
@@ -454,12 +512,10 @@ Docker would package these services. Kubernetes would only orchestrate them once
 
 ## Current priorities
 
-The product direction is now:
-
-1. make the AI workspace the easiest way to operate CallSync;
-2. expand agent tools beyond scheduling, reads, and preparation;
-3. add approval-gated follow-up, rescheduling, cancellation, and task operations;
-4. continue simplifying the manual workspace so it remains a clean system of record;
+1. make Chat the easiest way to operate CallSync;
+2. expand and harden real agent workflows instead of adding dashboard features;
+3. move human approvals toward durable LangGraph checkpoint/interrupt semantics;
+4. continue simplifying the manual workspace as a clean system of record;
 5. finish Outlook-only and provider failure-path production verification;
 6. complete Stage 6–7 production activation and token-encryption verification;
 7. introduce Docker and background-job infrastructure when agent workloads justify it;
