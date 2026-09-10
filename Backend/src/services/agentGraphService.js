@@ -3,6 +3,7 @@ const { StateGraph, StateSchema, START, END } = require('@langchain/langgraph');
 const z = require('zod');
 const config = require('../config/env');
 const { CALLSYNC_AGENT_TOOLS, executeAgentTool } = require('./agentRegistry');
+const { getAgentCheckpointer, graphThreadConfig } = require('./agentCheckpointService');
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_TOOL_ROUNDS = 6;
@@ -108,7 +109,7 @@ async function defaultProviderCall(state) {
   });
 }
 
-function createAgentGraph({ providerCall = defaultProviderCall, toolExecutor = executeAgentTool } = {}) {
+function createAgentGraph({ providerCall = defaultProviderCall, toolExecutor = executeAgentTool, checkpointer = null } = {}) {
   async function modelNode(state) {
     if (state.round >= MAX_TOOL_ROUNDS) {
       return {
@@ -172,19 +173,34 @@ function createAgentGraph({ providerCall = defaultProviderCall, toolExecutor = e
     return state.toolCalls.length ? 'tools' : END;
   }
 
-  return new StateGraph(AgentGraphState)
+  const builder = new StateGraph(AgentGraphState)
     .addNode('model', modelNode)
     .addNode('tools', toolsNode)
     .addEdge(START, 'model')
     .addConditionalEdges('model', routeAfterModel, ['tools', END])
-    .addEdge('tools', 'model')
-    .compile();
+    .addEdge('tools', 'model');
+
+  return checkpointer ? builder.compile({ checkpointer }) : builder.compile();
 }
 
-const agentGraph = createAgentGraph();
+let checkpointedGraphPromise;
 
-async function runAgentGraph({ messages, userId, userTimeZone }) {
-  const result = await agentGraph.invoke({
+async function getCheckpointedGraph() {
+  if (!checkpointedGraphPromise) {
+    checkpointedGraphPromise = getAgentCheckpointer()
+      .then((checkpointer) => createAgentGraph({ checkpointer }))
+      .catch((error) => {
+        checkpointedGraphPromise = null;
+        throw error;
+      });
+  }
+  return checkpointedGraphPromise;
+}
+
+async function runAgentGraph({ messages, userId, userTimeZone, threadId }) {
+  const graph = await getCheckpointedGraph();
+  const configForThread = graphThreadConfig(threadId);
+  const result = await graph.invoke({
     providerInput: inputFromHistory(messages),
     userId,
     userTimeZone: userTimeZone || 'UTC',
@@ -194,6 +210,7 @@ async function runAgentGraph({ messages, userId, userTimeZone }) {
     responseText: '',
     stopReason: '',
   }, {
+    ...configForThread,
     recursionLimit: GRAPH_RECURSION_LIMIT,
   });
 

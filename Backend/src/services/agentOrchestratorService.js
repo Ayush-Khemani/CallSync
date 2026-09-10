@@ -53,10 +53,10 @@ async function fallbackTurn({ message, userId, userTimeZone }) {
   };
 }
 
-async function runAgentTurn({ messages, message, userId, userTimeZone }) {
+async function runAgentTurn({ messages, message, userId, userTimeZone, threadId }) {
   if (config.openaiApiKey) {
     try {
-      return await runAgentGraph({ messages, userId, userTimeZone });
+      return await runAgentGraph({ messages, userId, userTimeZone, threadId });
     } catch (error) {
       console.error('LangGraph agent run failed; server fallback used', {
         name: error?.name,

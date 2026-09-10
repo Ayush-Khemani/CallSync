@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { createAgentGraph, _test } = require('../src/services/agentGraphService');
+const { graphThreadConfig } = require('../src/services/agentCheckpointService');
 
 function graphInput(overrides = {}) {
   return {
@@ -16,6 +17,13 @@ function graphInput(overrides = {}) {
 }
 
 (async () => {
+  assert.deepEqual(
+    graphThreadConfig('thread-123'),
+    { configurable: { thread_id: 'thread-123', checkpoint_ns: '' } }
+  );
+  assert.throws(() => graphThreadConfig(''), /thread ID is required/);
+  assert.throws(() => graphThreadConfig('x'.repeat(256)), /255 characters or fewer/);
+
   {
     let providerCalls = 0;
     const executed = [];
