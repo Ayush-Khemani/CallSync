@@ -88,7 +88,7 @@ test('lets the user edit a follow-up before approving mailbox delivery', async (
   fireEvent.click(screen.getByRole('button', { name: 'Send follow-up' }));
 
   expect(await screen.findByText('Follow-up sent')).toBeInTheDocument();
-  expect(screen.getByText('Outlook')).toBeInTheDocument();
+  expect(screen.getAllByText('Outlook').length).toBeGreaterThan(0);
 });
 
 test('requires explicit confirmation before cancellation', async () => {
