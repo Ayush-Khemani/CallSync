@@ -1,19 +1,24 @@
 const axios = require('axios');
 const config = require('../config/env');
-const { AGENT_TOOLS, executeAgentTool } = require('./agentTools');
+const { CALLSYNC_AGENT_TOOLS, executeAgentTool } = require('./agentRegistry');
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
-const MAX_TOOL_ROUNDS = 4;
+const MAX_TOOL_ROUNDS = 6;
 const REQUEST_TIMEOUT_MS = 18000;
 
 const INSTRUCTIONS = [
   'You are CallSync, an action-oriented meeting operations agent.',
-  'Use tools whenever the user asks about their meetings, tasks, people, meeting history, preparation, or scheduling.',
-  'Never invent meeting records, people, availability, tasks, dates, commitments, or actions.',
+  'Use tools whenever the user asks about their meetings, tasks, people, meeting history, preparation, scheduling, follow-up, cancellation, or rescheduling.',
+  'Never invent meeting records, people, availability, tasks, dates, commitments, messages, or completed actions.',
+  'Identify the exact meeting or task before acting. Use list_meetings, list_open_tasks, or find_person when the target is ambiguous.',
   'For a new scheduling request, call prepare_schedule using the full user request and supplied timezone.',
-  'If prepare_schedule reports missing fields, ask only for the missing information.',
-  'If prepare_schedule returns a ready proposal, explain that the request is ready and that CallSync needs confirmation before sending it.',
-  'Never claim that an email, calendar hold, meeting, cancellation, reschedule, or external change happened unless a tool result explicitly says it happened.',
+  'For follow-up, first identify the pending meeting, then call prepare_follow_up. The returned message requires user confirmation before it can be sent.',
+  'For cancellation, first identify the meeting, then call prepare_cancellation. Cancellation requires user confirmation.',
+  'For rescheduling, first identify the booked meeting, then call prepare_reschedule using the full requested new timing and supplied timezone. The returned new time requires user confirmation.',
+  'For task completion or reopening, first identify the correct task using list_open_tasks when necessary, then call update_task_status. Task status is internal CallSync state and can be updated directly.',
+  'If a preparation tool reports missing information or no availability, ask only for the missing or next useful input.',
+  'Only prepare one external side-effect approval at a time. Do not prepare multiple unrelated sends/cancellations/reschedules in one turn.',
+  'Never claim that an email, calendar update, meeting, cancellation, reschedule, or external change happened unless an execution result explicitly says it happened.',
   'When asked to prepare for a meeting, first identify the meeting using list_meetings, then call prepare_for_meeting with the correct meeting ID.',
   'Keep replies concise and operational. Prefer the next useful action over explaining CallSync features.',
 ].join(' ');
@@ -52,6 +57,18 @@ function uiPayloadForTool(name, result) {
   if (name === 'prepare_schedule' && result.status === 'ready') {
     return { type: 'schedule_confirmation', proposal: result.proposal };
   }
+  if (name === 'prepare_follow_up' && result.status === 'ready') {
+    return { type: 'follow_up_confirmation', proposal: result.proposal };
+  }
+  if (name === 'prepare_cancellation' && result.status === 'ready') {
+    return { type: 'cancel_confirmation', proposal: result.proposal };
+  }
+  if (name === 'prepare_reschedule' && result.status === 'ready') {
+    return { type: 'reschedule_confirmation', proposal: result.proposal };
+  }
+  if (name === 'update_task_status' && result.action) {
+    return { type: 'task_update', action: result.action, message: result.message };
+  }
   return null;
 }
 
@@ -74,7 +91,7 @@ async function callProvider({ messages, userId, userTimeZone }) {
       store: false,
       instructions: `${INSTRUCTIONS} Runtime timezone: ${userTimeZone || 'UTC'}.`,
       input,
-      tools: AGENT_TOOLS,
+      tools: CALLSYNC_AGENT_TOOLS,
       tool_choice: 'auto',
       parallel_tool_calls: false,
       max_output_tokens: 1200,
@@ -97,12 +114,10 @@ async function callProvider({ messages, userId, userTimeZone }) {
     const outputs = [];
     for (const call of calls) {
       const args = parseArguments(call.arguments);
-      if (call.name === 'prepare_schedule' && !args.timeZone) args.timeZone = userTimeZone || 'UTC';
-      const result = await executeAgentTool({
-        name: call.name,
-        args,
-        userId,
-      });
+      if (['prepare_schedule', 'prepare_reschedule'].includes(call.name) && !args.timeZone) {
+        args.timeZone = userTimeZone || 'UTC';
+      }
+      const result = await executeAgentTool({ name: call.name, args, userId });
       latestPayload = uiPayloadForTool(call.name, result) || latestPayload;
       outputs.push({
         type: 'function_call_output',
@@ -131,10 +146,7 @@ async function fallbackTurn({ message, userId, userTimeZone }) {
       userId,
     });
     if (result.status === 'needs_input') {
-      return {
-        text: `I can do that. I still need the ${result.missing.join(' and ')}.`,
-        payload: null,
-      };
+      return { text: `I can do that. I still need the ${result.missing.join(' and ')}.`, payload: null };
     }
     if (result.status === 'no_availability') {
       return {
@@ -165,7 +177,7 @@ async function fallbackTurn({ message, userId, userTimeZone }) {
   }
 
   return {
-    text: 'I can work with your meetings, people, tasks, preparation, and scheduling. Tell me the outcome you want.',
+    text: 'I can work with your meetings, people, tasks, preparation, scheduling, follow-ups, cancellations, and rescheduling. Tell me the outcome you want.',
     payload: null,
   };
 }
@@ -188,9 +200,5 @@ async function runAgentTurn({ messages, message, userId, userTimeZone }) {
 
 module.exports = {
   runAgentTurn,
-  _test: {
-    extractResponseText,
-    parseArguments,
-    uiPayloadForTool,
-  },
+  _test: { extractResponseText, parseArguments, uiPayloadForTool },
 };
