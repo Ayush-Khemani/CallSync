@@ -6,6 +6,7 @@ const { CALLSYNC_AGENT_TOOLS, executeAgentTool } = require('./agentRegistry');
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_TOOL_ROUNDS = 6;
+const GRAPH_RECURSION_LIMIT = (MAX_TOOL_ROUNDS * 2) + 4;
 const REQUEST_TIMEOUT_MS = 18000;
 
 const INSTRUCTIONS = [
@@ -75,6 +76,12 @@ function uiPayloadForTool(name, result) {
   return null;
 }
 
+function shouldClearPayload(name, result) {
+  return ['prepare_schedule', 'prepare_follow_up', 'prepare_cancellation', 'prepare_reschedule'].includes(name)
+    && result?.status
+    && result.status !== 'ready';
+}
+
 function inputFromHistory(messages) {
   return messages.slice(-24).map((message) => ({
     role: message.role,
@@ -141,12 +148,11 @@ function createAgentGraph({ providerCall = defaultProviderCall, toolExecutor = e
         args.timeZone = state.userTimeZone || 'UTC';
       }
 
-      const result = await toolExecutor({
-        name: call.name,
-        args,
-        userId: state.userId,
-      });
-      latestPayload = uiPayloadForTool(call.name, result) || latestPayload;
+      const result = await toolExecutor({ name: call.name, args, userId: state.userId });
+      const nextPayload = uiPayloadForTool(call.name, result);
+      if (nextPayload) latestPayload = nextPayload;
+      else if (shouldClearPayload(call.name, result)) latestPayload = null;
+
       outputs.push({
         type: 'function_call_output',
         call_id: call.call_id,
@@ -187,6 +193,8 @@ async function runAgentGraph({ messages, userId, userTimeZone }) {
     latestPayload: null,
     responseText: '',
     stopReason: '',
+  }, {
+    recursionLimit: GRAPH_RECURSION_LIMIT,
   });
 
   return {
@@ -205,7 +213,9 @@ module.exports = {
     extractResponseText,
     parseArguments,
     uiPayloadForTool,
+    shouldClearPayload,
     inputFromHistory,
     MAX_TOOL_ROUNDS,
+    GRAPH_RECURSION_LIMIT,
   },
 };
