@@ -18,6 +18,7 @@
   "dependencies": {
     "@langchain/core": "^1.2.10",
     "@langchain/langgraph": "^1.4.14",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
