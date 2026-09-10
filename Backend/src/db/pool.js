@@ -19,6 +19,7 @@ function getPool() {
 }
 
 module.exports = {
+  getPool,
   query: (...args) => getPool().query(...args),
   connect: (...args) => getPool().connect(...args),
   end: (...args) => (pool ? pool.end(...args) : Promise.resolve()),
