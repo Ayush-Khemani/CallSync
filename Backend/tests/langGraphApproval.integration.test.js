@@ -13,7 +13,7 @@ const pool = require('../src/db/pool');
 const { runMigrations } = require('../src/db/migrate');
 const { getAgentCheckpointer, graphThreadConfig } = require('../src/services/agentCheckpointService');
 const { createAgentGraph } = require('../src/services/agentGraphService');
-const { markAction } = require('../src/services/agentStore');
+const { createPendingAction, claimPendingAction, markAction } = require('../src/services/agentStore');
 
 function baseInput(userId, threadId) {
   return {
@@ -162,6 +162,23 @@ function baseInput(userId, threadId) {
   const finalState = await graph.getState(config);
   assert.equal(finalState.values.approval, null);
   assert.deepEqual(finalState.next, []);
+
+  const claimThreadId = crypto.randomUUID();
+  await pool.query(
+    'INSERT INTO agent_threads (id, user_id, title) VALUES ($1, $2, $3)',
+    [claimThreadId, userId, 'Atomic claim test']
+  );
+  const claimAction = await createPendingAction({
+    userId,
+    threadId: claimThreadId,
+    actionType: 'cancel_meeting',
+    payload: { meetingId: 99 },
+  });
+  const firstClaim = await claimPendingAction(userId, claimAction.id);
+  const secondClaim = await claimPendingAction(userId, claimAction.id);
+  assert.equal(firstClaim.status, 'executing');
+  assert.equal(secondClaim, null);
+  await markAction({ userId, actionId: claimAction.id, status: 'failed', result: { test: 'cleanup' } });
 
   await pool.end();
   console.log('LangGraph native approval interrupt/resume integration test passed');
