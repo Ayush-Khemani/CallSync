@@ -1,5 +1,10 @@
 const HttpError = require('../utils/httpError');
-const { createPendingAction, getPendingAction, markAction } = require('./agentStore');
+const {
+  createPendingAction,
+  getPendingAction,
+  claimPendingAction,
+  markAction,
+} = require('./agentStore');
 const { createMeetingRequest } = require('./meetingCreationService');
 const { sendFollowUp } = require('./followUpService');
 const { cancelMeeting, rescheduleMeeting } = require('./meetingLifecycleService');
@@ -202,14 +207,19 @@ async function executeStoredAgentAction({ userId, actionId, body = {} }) {
     throw new HttpError(409, 'This agent action expired. Ask CallSync to prepare it again.');
   }
 
+  const claimed = await claimPendingAction(userId, actionId);
+  if (!claimed) {
+    throw new HttpError(409, 'This agent action is already being processed or is no longer available');
+  }
+
   try {
-    const execution = await executePendingAction({ action, userId, body });
-    await markAction({ userId, actionId: action.id, status: 'confirmed', result: execution.result });
-    return { action, execution };
+    const execution = await executePendingAction({ action: claimed, userId, body });
+    await markAction({ userId, actionId: claimed.id, status: 'confirmed', result: execution.result });
+    return { action: claimed, execution };
   } catch (error) {
     await markAction({
       userId,
-      actionId: action.id,
+      actionId: claimed.id,
       status: 'failed',
       result: { error: error.message || 'Action failed' },
     });
