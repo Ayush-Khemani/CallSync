@@ -285,14 +285,14 @@ function createAgentGraph({
     .addNode('model', modelNode)
     .addNode('tools', toolsNode)
     .addNode('prepare_approval', prepareApprovalNode)
-    .addNode('approval', approvalNode)
+    .addNode('await_approval', approvalNode)
     .addNode('execute_approval', executeApprovalNode)
     .addNode('decline_approval', declineApprovalNode)
     .addEdge(START, 'model')
     .addConditionalEdges('model', routeAfterModel, ['tools', 'prepare_approval', END])
     .addEdge('tools', 'model')
-    .addEdge('prepare_approval', 'approval')
-    .addConditionalEdges('approval', routeAfterApproval, ['execute_approval', 'decline_approval'])
+    .addEdge('prepare_approval', 'await_approval')
+    .addConditionalEdges('await_approval', routeAfterApproval, ['execute_approval', 'decline_approval'])
     .addEdge('execute_approval', END)
     .addEdge('decline_approval', END);
 
