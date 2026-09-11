@@ -115,6 +115,20 @@ async function getPendingAction(userId, actionId) {
   return result.rows[0] || null;
 }
 
+async function claimPendingAction(userId, actionId) {
+  const result = await pool.query(
+    `UPDATE agent_pending_actions
+     SET status = 'executing'
+     WHERE id = $1
+       AND user_id = $2
+       AND status = 'pending'
+       AND expires_at > NOW()
+     RETURNING id, thread_id, user_id, action_type, payload, status, expires_at, created_at, confirmed_at, result`,
+    [actionId, userId]
+  );
+  return result.rows[0] || null;
+}
+
 async function markAction({ userId, actionId, status, result = null }) {
   const updated = await pool.query(
     `UPDATE agent_pending_actions
@@ -136,5 +150,6 @@ module.exports = {
   saveMessage,
   createPendingAction,
   getPendingAction,
+  claimPendingAction,
   markAction,
 };
