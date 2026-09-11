@@ -136,7 +136,7 @@ function baseInput(userId, threadId) {
 
   const checkpointBeforeResume = await graph.getState(config);
   assert.equal(checkpointBeforeResume.values.approval.actionId, interruptValue.actionId);
-  assert.ok(checkpointBeforeResume.next.includes('approval'));
+  assert.ok(checkpointBeforeResume.next.includes('await_approval'));
 
   const resumed = await graph.invoke(new Command({
     resume: {
