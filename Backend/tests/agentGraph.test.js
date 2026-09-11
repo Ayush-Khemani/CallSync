@@ -7,11 +7,15 @@ function graphInput(overrides = {}) {
     providerInput: [{ role: 'user', content: 'Show my open tasks' }],
     userId: 42,
     userTimeZone: 'Europe/Budapest',
+    threadId: 'thread-123',
     round: 0,
     toolCalls: [],
     latestPayload: null,
     responseText: '',
     stopReason: '',
+    approval: null,
+    approvalDecision: null,
+    actionResult: null,
     ...overrides,
   };
 }
@@ -23,6 +27,19 @@ function graphInput(overrides = {}) {
   );
   assert.throws(() => graphThreadConfig(''), /thread ID is required/);
   assert.throws(() => graphThreadConfig('x'.repeat(256)), /255 characters or fewer/);
+
+  assert.deepEqual(
+    _test.normalizeApprovalDecision(true, 'action-1'),
+    { approved: true, actionId: 'action-1', body: {} }
+  );
+  assert.deepEqual(
+    _test.normalizeApprovalDecision({ approved: true, actionId: 'action-1', body: { provider: 'google' } }, 'action-1'),
+    { approved: true, actionId: 'action-1', body: { provider: 'google' } }
+  );
+  assert.throws(
+    () => _test.normalizeApprovalDecision({ approved: true, actionId: 'action-other' }, 'action-1'),
+    /does not match the paused agent action/
+  );
 
   {
     let providerCalls = 0;

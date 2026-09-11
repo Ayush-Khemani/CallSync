@@ -5,7 +5,7 @@ process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:po
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 process.env.NODE_ENV = 'test';
 process.env.FRONTEND_URLS = 'http://localhost:3000,https://call-sync-livid.vercel.app';
-process.env.FRONTEND_ORIGIN_REGEX = '^https://call-sync-[a-z0-9-]+\.vercel\.app$';
+process.env.FRONTEND_ORIGIN_REGEX = '^https://call-sync-[a-z0-9-]+\\.vercel\\.app$';
 
 const app = require('../src/app');
 const { generateAvailableSlots } = require('../src/services/availabilityService');
@@ -131,6 +131,13 @@ test('agent action confirmation rejects missing auth token', async () => {
   const response = await request('POST', '/api/agent/actions/00000000-0000-0000-0000-000000000000/confirm', {
     selectedSlots: ['2026-09-15T13:00:00.000Z'],
   });
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.body, { error: 'No token provided' });
+});
+
+test('agent action rejection rejects missing auth token', async () => {
+  const response = await request('POST', '/api/agent/actions/00000000-0000-0000-0000-000000000000/reject');
 
   assert.equal(response.statusCode, 401);
   assert.deepEqual(response.body, { error: 'No token provided' });
