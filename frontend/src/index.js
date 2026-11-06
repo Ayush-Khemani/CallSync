@@ -1,10 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import './LandingPageV6Polish.css';
 import './PlatformVisualAlignment.css';
 import App from './App';
-import LandingPageV6 from './LandingPageV6';
+import LandingPage, { LandingInfoPage } from './LandingPage';
 import Stage4Product from './Stage4Product';
 import Stage5Prep from './Stage5Prep';
 import Stage7Memory from './Stage7Memory';
@@ -40,7 +39,9 @@ function RootApp() {
     };
   }, []);
 
-  if (pathname === '/') return <LandingPageV6 />;
+  if (pathname === '/') return <LandingPage />;
+  if (pathname === '/privacy') return <LandingInfoPage kind="privacy" />;
+  if (pathname === '/terms') return <LandingInfoPage kind="terms" />;
   if (pathname === '/dashboard') return <ProductWorkspace />;
   if (pathname.startsWith('/meeting/')) return <MeetingRecordPage />;
   if (pathname === '/prepare') return <Stage5Prep />;
@@ -48,7 +49,8 @@ function RootApp() {
   if (pathname.startsWith('/select-slot/')) return <Stage4Product />;
   if (pathname === '/auth/google') return <OAuthCallbackPage provider="google" />;
   if (pathname === '/auth/outlook') return <OAuthCallbackPage provider="outlook" />;
-  return <App />;
+  if (pathname === '/login') return <App />;
+  return <LandingInfoPage kind="not-found" />;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
